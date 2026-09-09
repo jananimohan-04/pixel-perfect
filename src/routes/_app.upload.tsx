@@ -223,6 +223,7 @@ function UploadWizardPage() {
           status: status as DocStatus,
           updated_by: userId,
           updated_by_name: userName,
+          drive_folder_id: selectedFolderId === 'root' ? null : selectedFolderId,
         });
       } else {
         const newDoc = await createDocument({
@@ -240,6 +241,7 @@ function UploadWizardPage() {
           created_by_name: userName,
           updated_by: userId,
           updated_by_name: userName,
+          drive_folder_id: selectedFolderId === 'root' ? null : selectedFolderId,
         });
         finalDocId = newDoc.id;
       }

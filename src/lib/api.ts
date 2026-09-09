@@ -71,6 +71,7 @@ export async function updatePart(id: string, input: Tables["cncvault_parts"]["Up
 export type DocumentFilters = {
   search?: string;
   partyId?: string;
+  folderId?: string;
   documentType?: string;
   status?: string;
   version?: string;
@@ -96,6 +97,13 @@ export async function listDocuments(filters: DocumentFilters = {}) {
     );
   }
   if (filters.partyId) query = query.eq("party_id", filters.partyId);
+  if (filters.folderId) {
+    if (filters.folderId === "root") {
+      query = query.is("drive_folder_id", null);
+    } else {
+      query = query.eq("drive_folder_id", filters.folderId);
+    }
+  }
   if (filters.documentType) query = query.eq("document_type", filters.documentType);
   if (filters.status) query = query.eq("status", filters.status as DocStatus);
   if (filters.version) query = query.eq("current_version", Number(filters.version));

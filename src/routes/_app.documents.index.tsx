@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { listDocuments, listParties } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,81 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info } from "lucide-react";
+import { MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
 
 export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
 });
+
+
+  const toggleFolderExpand = (id: string) => {
+    setExpandedFolders(prev => ({ ...prev, [id]: prev[id] === undefined ? false : !prev[id] }));
+  };
+
+
+function DocumentRow({ doc, can, navigate }: { doc: any; can: any; navigate: any }) {
+  return (
+    <TableRow key={doc.id} className="hover:bg-slate-50">
+      <TableCell>
+        <div className="font-medium text-indigo-600">{doc.document_number}</div>
+        <div className="text-xs text-slate-500">v{doc.current_version} | {doc.file_type?.toUpperCase()}</div>
+      </TableCell>
+      <TableCell>
+        <div className="text-sm text-slate-900 truncate max-w-[200px]">{doc.document_name}</div>
+        <div className="text-xs text-slate-500">PN: {doc.part_number}</div>
+      </TableCell>
+      <TableCell>
+        <div className="text-sm text-slate-700">{doc.parties?.name || "Internal"}</div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={doc.status === "Approved" || doc.status === "Released" ? "default" : doc.status === "Superseded" ? "secondary" : "outline"}>
+          {doc.status}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="text-sm text-slate-700">{format(new Date(doc.updated_at), "MMM d, yyyy")}</div>
+        <div className="text-xs text-slate-500">{doc.updated_by_name}</div>
+      </TableCell>
+      <TableCell className="text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate({ to: `/documents/${doc.id}` })}>
+              <Info className="mr-2 h-4 w-4" /> Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: `/documents/${doc.id}` })}>
+              <History className="mr-2 h-4 w-4" /> Version History
+            </DropdownMenuItem>
+            {can("view") && (
+              <DropdownMenuItem>
+                <Eye className="mr-2 h-4 w-4" /> Preview
+              </DropdownMenuItem>
+            )}
+            {can("download") && (
+              <DropdownMenuItem>
+                <Download className="mr-2 h-4 w-4" /> Download
+              </DropdownMenuItem>
+            )}
+            {can("manage_access") && (
+              <DropdownMenuItem onClick={() => navigate({ to: `/documents/${doc.id}` })}>
+                <Shield className="mr-2 h-4 w-4" /> Manage Access
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+}
 
 function DocumentsPage() {
   const { can } = usePermissions();
@@ -32,6 +101,9 @@ function DocumentsPage() {
   const [partyId, setPartyId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [docType, setDocType] = useState<string>("all");
+  const [folderId, setFolderId] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<"list" | "folders">("folders");
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
@@ -47,21 +119,29 @@ function DocumentsPage() {
     queryFn: listParties,
   });
 
+  const { data: partyFolders } = useQuery({
+    queryKey: ["drive_folders", partyId],
+    queryFn: () => GoogleDriveService.listFolders(partyId),
+    enabled: partyId !== "all",
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ["documents", debouncedSearch, partyId, status, docType, page],
+    queryKey: ["documents", debouncedSearch, partyId, folderId, status, docType, page, viewMode],
     queryFn: () => listDocuments({
       search: debouncedSearch || undefined,
       partyId: partyId !== "all" ? partyId : undefined,
+      folderId: folderId !== "all" ? folderId : undefined,
       status: status !== "all" ? status : undefined,
       documentType: docType !== "all" ? docType : undefined,
-      page,
-      pageSize,
+      page: viewMode === "list" ? page : 1,
+      pageSize: viewMode === "list" ? pageSize : 100,
     }),
   });
 
   const handleResetFilters = () => {
     setSearch("");
     setPartyId("all");
+    setFolderId("all");
     setStatus("all");
     setDocType("all");
     setPage(1);
@@ -76,12 +156,35 @@ function DocumentsPage() {
             Manage engineering drawings, CNC programs, and documents.
           </p>
         </div>
-        {can("upload") && (
-          <Button onClick={() => navigate({ to: "/upload" })} className="bg-indigo-600 hover:bg-indigo-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Upload Document
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <div className="bg-slate-100 p-1 rounded-lg border flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={viewMode === "folders" ? "secondary" : "ghost"}
+              className={`h-8 text-xs font-medium ${viewMode === "folders" ? "bg-white shadow-sm text-indigo-600" : "text-slate-600"}`}
+              onClick={() => setViewMode("folders")}
+            >
+              <Folder className="w-3.5 h-3.5 mr-1.5" />
+              Folder View
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              className={`h-8 text-xs font-medium ${viewMode === "list" ? "bg-white shadow-sm text-indigo-600" : "text-slate-600"}`}
+              onClick={() => setViewMode("list")}
+            >
+              <List className="w-3.5 h-3.5 mr-1.5" />
+              List View
+            </Button>
+          </div>
+
+          {can("upload") && (
+            <Button onClick={() => navigate({ to: "/upload" })} className="bg-indigo-600 hover:bg-indigo-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Upload Document
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4">
@@ -95,7 +198,7 @@ function DocumentsPage() {
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setPage(1); }}>
+          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Party" />
             </SelectTrigger>
@@ -106,6 +209,21 @@ function DocumentsPage() {
               ))}
             </SelectContent>
           </Select>
+
+          {partyId !== "all" && (
+            <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Drive Folder" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Folders</SelectItem>
+                <SelectItem value="root">CNC Vault (Root)</SelectItem>
+                {partyFolders?.map((f) => (
+                  <SelectItem key={f.id} value={f.google_folder_id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
             <SelectTrigger className="w-full">
