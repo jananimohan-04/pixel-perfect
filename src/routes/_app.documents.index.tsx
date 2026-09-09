@@ -98,7 +98,8 @@ function DocumentsPage() {
   const navigate = useNavigate();
   
   const [search, setSearch] = useState("");
-  const [partyId, setPartyId] = useState<string>("all");
+  // Non-SuperAdmin users default to their own company
+  const [partyId, setPartyId] = useState<string>(isSuperAdmin ? "all" : (userPartyId || "all"));
   const [status, setStatus] = useState<string>("all");
   const [docType, setDocType] = useState<string>("all");
   const [folderId, setFolderId] = useState<string>("all");
@@ -145,7 +146,11 @@ function DocumentsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const effectivePartyId = partyId !== "all" ? partyId : undefined;
+  // Non-SuperAdmin: always locked to their own company's party
+  // SuperAdmin: can filter by any party or see all
+  const effectivePartyId = isSuperAdmin
+    ? (partyId !== "all" ? partyId : undefined)
+    : (userPartyId || undefined);
 
   const { data: parties } = useQuery({
     queryKey: ["parties-list"],
@@ -242,17 +247,24 @@ function DocumentsPage() {
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Party" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Parties</SelectItem>
-              {parties?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isSuperAdmin ? (
+            <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Party" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Parties</SelectItem>
+                {parties?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-md text-sm font-medium text-indigo-700">
+              <Building className="w-4 h-4" />
+              {parties?.find(p => p.id === userPartyId)?.name || "My Company"}
+            </div>
+          )}
 
           {partyId !== "all" && (
             <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
