@@ -113,12 +113,16 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
 }
 
 function PartiesPage() {
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, userPartyId } = usePermissions();
   
   const { data: parties, isLoading, refetch } = useQuery({
     queryKey: ["parties-list"],
     queryFn: listParties,
   });
+
+  const displayParties = isSuperAdmin 
+    ? parties 
+    : parties?.filter(p => p.id === userPartyId);
 
   return (
     <div className="space-y-6">
