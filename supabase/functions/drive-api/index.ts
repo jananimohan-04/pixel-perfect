@@ -272,6 +272,7 @@ serve(async (req) => {
 
       if (!isSuperAdmin && !isSameParty && !rbacCheck) {
         throw new Error('Permission denied');
+      }
       if (!file || !partyId || !documentNumber || !version) {
         throw new Error('Missing fields');
       }
