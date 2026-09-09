@@ -145,7 +145,7 @@ function DocumentsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const effectivePartyId = isSuperAdmin ? (partyId !== "all" ? partyId : undefined) : (userPartyId || undefined);
+  const effectivePartyId = partyId !== "all" ? partyId : undefined;
 
   const { data: parties } = useQuery({
     queryKey: ["parties-list"],
@@ -242,24 +242,17 @@ function DocumentsPage() {
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {isSuperAdmin ? (
-            <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Party" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Parties</SelectItem>
-                {parties?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-md text-xs font-semibold text-indigo-800">
-              <Building className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="truncate">{parties?.find(p => p.id === userPartyId)?.name || "My Company"}</span>
-            </div>
-          )}
+          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Party" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Parties</SelectItem>
+              {parties?.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {partyId !== "all" && (
             <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
