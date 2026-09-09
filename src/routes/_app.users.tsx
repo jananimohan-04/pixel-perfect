@@ -21,6 +21,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { CreatePartyModal } from "@/components/create-party-modal";
 
 export const Route = createFileRoute("/_app/users")({
   component: UsersPage,
@@ -32,6 +33,7 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("User@1234");
   const [partyId, setPartyId] = useState<string>("internal");
+  const [isCreateCompanyOpen, setIsCreateCompanyOpen] = useState(false);
   const [roleId, setRoleId] = useState<string>("");
   const [department, setDepartment] = useState("");
 
@@ -116,12 +118,33 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
 
           <div className="space-y-2">
-            <Label>Assign to Company (Party)</Label>
-            <Select value={partyId} onValueChange={setPartyId}>
+            <div className="flex items-center justify-between">
+              <Label>Assign to Company (Party)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium px-2 flex items-center gap-1"
+                onClick={() => setIsCreateCompanyOpen(true)}
+              >
+                <Plus className="w-3 h-3" />
+                + Create Company
+              </Button>
+            </div>
+            <Select value={partyId} onValueChange={(val) => {
+              if (val === "CREATE_NEW") {
+                setIsCreateCompanyOpen(true);
+                return;
+              }
+              setPartyId(val);
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Company..." />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="CREATE_NEW" className="font-medium text-indigo-600 border-b border-slate-100 bg-indigo-50/50 hover:bg-indigo-100/50 cursor-pointer">
+                  ✨ + Create New Company...
+                </SelectItem>
                 <SelectItem value="internal">🏢 Internal / Super Admin Access</SelectItem>
                 {parties?.map((p) => (
                   <SelectItem key={p.id} value={p.id}>🏢 {p.name} ({p.code})</SelectItem>
@@ -130,6 +153,12 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </Select>
             <p className="text-[11px] text-slate-500">Users will only have access to documents & parts of their assigned Company.</p>
           </div>
+
+          <CreatePartyModal
+            open={isCreateCompanyOpen}
+            onOpenChange={setIsCreateCompanyOpen}
+            onPartyCreated={(newParty) => setPartyId(newParty.id)}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -171,6 +200,7 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
 function EditUserModal({ profile, open, onOpenChange }: { profile: any; open: boolean; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient();
   const [partyId, setPartyId] = useState<string>(profile?.party_id || "internal");
+  const [isCreateCompanyOpen, setIsCreateCompanyOpen] = useState(false);
   const [department, setDepartment] = useState(profile?.department || "");
 
   const { data: parties } = useQuery({ queryKey: ["parties-list"], queryFn: listParties });
@@ -202,19 +232,46 @@ function EditUserModal({ profile, open, onOpenChange }: { profile: any; open: bo
 
         <div className="space-y-4 py-3">
           <div className="space-y-2">
-            <Label>Company Assignment</Label>
-            <Select value={partyId} onValueChange={setPartyId}>
+            <div className="flex items-center justify-between">
+              <Label>Company Assignment</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium px-2 flex items-center gap-1"
+                onClick={() => setIsCreateCompanyOpen(true)}
+              >
+                <Plus className="w-3 h-3" />
+                + Create Company
+              </Button>
+            </div>
+            <Select value={partyId} onValueChange={(val) => {
+              if (val === "CREATE_NEW") {
+                setIsCreateCompanyOpen(true);
+                return;
+              }
+              setPartyId(val);
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Company..." />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="CREATE_NEW" className="font-medium text-indigo-600 border-b border-slate-100 bg-indigo-50/50 hover:bg-indigo-100/50 cursor-pointer">
+                  ✨ + Create New Company...
+                </SelectItem>
                 <SelectItem value="internal">🏢 Internal / Super Admin Access</SelectItem>
                 {parties?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>🏢 {p.name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>🏢 {p.name} ({p.code})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
+          <CreatePartyModal
+            open={isCreateCompanyOpen}
+            onOpenChange={setIsCreateCompanyOpen}
+            onPartyCreated={(newParty) => setPartyId(newParty.id)}
+          />
 
           <div className="space-y-2">
             <Label>Department</Label>
