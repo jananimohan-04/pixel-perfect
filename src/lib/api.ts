@@ -3,16 +3,16 @@ import type { Database } from "@/integrations/supabase/types";
 import type { DocStatus } from "./rbac";
 
 type Tables = Database["public"]["Tables"];
-export type Party = Tables["parties"]["Row"];
-export type Part = Tables["parts"]["Row"];
-export type DocumentRow = Tables["documents"]["Row"];
-export type DocumentVersion = Tables["document_versions"]["Row"];
-export type DocumentPermission = Tables["document_permissions"]["Row"];
-export type Profile = Tables["profiles"]["Row"];
-export type Role = Tables["roles"]["Row"];
-export type UserRole = Tables["user_roles"]["Row"];
-export type AuditLog = Tables["audit_logs"]["Row"];
-export type Notification = Tables["notifications"]["Row"];
+export type Party = Tables["cncvault_parties"]["Row"];
+export type Part = Tables["cncvault_parts"]["Row"];
+export type DocumentRow = Tables["cncvault_documents"]["Row"];
+export type DocumentVersion = Tables["cncvault_document_versions"]["Row"];
+export type DocumentPermission = Tables["cncvault_document_permissions"]["Row"];
+export type Profile = Tables["cncvault_profiles"]["Row"];
+export type Role = Tables["cncvault_roles"]["Row"];
+export type UserRole = Tables["cncvault_user_roles"]["Row"];
+export type AuditLog = Tables["cncvault_audit_logs"]["Row"];
+export type Notification = Tables["cncvault_notifications"]["Row"];
 
 export type DocumentWithParty = DocumentRow & {
   parties: Pick<Party, "id" | "name" | "code"> | null;
@@ -26,27 +26,27 @@ function unwrap<T>({ data, error }: { data: T | null; error: { message: string }
 /* ------------------------------ parties ------------------------------ */
 
 export async function listParties() {
-  return unwrap(await supabase.from("parties").select("*").order("name"));
+  return unwrap(await supabase.from("cncvault_parties").select("*").order("name"));
 }
 
 export async function getParty(id: string) {
-  return unwrap(await supabase.from("parties").select("*").eq("id", id).maybeSingle());
+  return unwrap(await supabase.from("cncvault_parties").select("*").eq("id", id).maybeSingle());
 }
 
-export async function createParty(input: Tables["parties"]["Insert"]) {
-  return unwrap(await supabase.from("parties").insert(input).select().single());
+export async function createParty(input: Tables["cncvault_parties"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_parties").insert(input).select().single());
 }
 
-export async function updateParty(id: string, input: Tables["parties"]["Update"]) {
-  return unwrap(await supabase.from("parties").update(input).eq("id", id).select().single());
+export async function updateParty(id: string, input: Tables["cncvault_parties"]["Update"]) {
+  return unwrap(await supabase.from("cncvault_parties").update(input).eq("id", id).select().single());
 }
 
 /* ------------------------------- parts ------------------------------- */
 
 export async function listParts(partyId?: string) {
   let query = supabase
-    .from("parts")
-    .select("*, parties(id, name, code)")
+    .from("cncvault_parts")
+    .select("*, parties:cncvault_parties(id, name, code)")
     .order("updated_at", { ascending: false });
   if (partyId) query = query.eq("party_id", partyId);
   return unwrap(await query) as (Part & { parties: Pick<Party, "id" | "name" | "code"> | null })[];
@@ -54,16 +54,16 @@ export async function listParts(partyId?: string) {
 
 export async function getPart(id: string) {
   return unwrap(
-    await supabase.from("parts").select("*, parties(id, name, code)").eq("id", id).maybeSingle(),
+    await supabase.from("cncvault_parts").select("*, parties:cncvault_parties(id, name, code)").eq("id", id).maybeSingle(),
   );
 }
 
-export async function createPart(input: Tables["parts"]["Insert"]) {
-  return unwrap(await supabase.from("parts").insert(input).select().single());
+export async function createPart(input: Tables["cncvault_parts"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_parts").insert(input).select().single());
 }
 
-export async function updatePart(id: string, input: Tables["parts"]["Update"]) {
-  return unwrap(await supabase.from("parts").update(input).eq("id", id).select().single());
+export async function updatePart(id: string, input: Tables["cncvault_parts"]["Update"]) {
+  return unwrap(await supabase.from("cncvault_parts").update(input).eq("id", id).select().single());
 }
 
 /* ----------------------------- documents ----------------------------- */
@@ -86,8 +86,8 @@ export async function listDocuments(filters: DocumentFilters = {}) {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 12;
   let query = supabase
-    .from("documents")
-    .select("*, parties(id, name, code)", { count: "exact" });
+    .from("cncvault_documents")
+    .select("*, parties:cncvault_parties(id, name, code)", { count: "exact" });
 
   if (filters.search) {
     const q = `%${filters.search.trim().replace(/\s+/g, "%")}%`;
@@ -125,8 +125,8 @@ export async function listDocuments(filters: DocumentFilters = {}) {
 export async function getDocument(id: string) {
   return unwrap(
     await supabase
-      .from("documents")
-      .select("*, parties(id, name, code), parts(id, part_number, part_name, drawing_type)")
+      .from("cncvault_documents")
+      .select("*, parties:cncvault_parties(id, name, code), parts:cncvault_parts(id, part_number, part_name, drawing_type)")
       .eq("id", id)
       .maybeSingle(),
   );
@@ -135,23 +135,23 @@ export async function getDocument(id: string) {
 export async function findDocumentByNumber(documentNumber: string) {
   return unwrap(
     await supabase
-      .from("documents")
-      .select("*, parties(id, name, code)")
+      .from("cncvault_documents")
+      .select("*, parties:cncvault_parties(id, name, code)")
       .eq("document_number", documentNumber)
       .maybeSingle(),
   );
 }
 
-export async function createDocument(input: Tables["documents"]["Insert"]) {
-  return unwrap(await supabase.from("documents").insert(input).select().single());
+export async function createDocument(input: Tables["cncvault_documents"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_documents").insert(input).select().single());
 }
 
-export async function updateDocument(id: string, input: Tables["documents"]["Update"]) {
-  return unwrap(await supabase.from("documents").update(input).eq("id", id).select().single());
+export async function updateDocument(id: string, input: Tables["cncvault_documents"]["Update"]) {
+  return unwrap(await supabase.from("cncvault_documents").update(input).eq("id", id).select().single());
 }
 
 export async function deleteDocument(id: string) {
-  const { error } = await supabase.from("documents").delete().eq("id", id);
+  const { error } = await supabase.from("cncvault_documents").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -160,20 +160,20 @@ export async function deleteDocument(id: string) {
 export async function listVersions(documentId: string) {
   return unwrap(
     await supabase
-      .from("document_versions")
+      .from("cncvault_document_versions")
       .select("*")
       .eq("document_id", documentId)
       .order("version_number", { ascending: false }),
   );
 }
 
-export async function createVersion(input: Tables["document_versions"]["Insert"]) {
-  return unwrap(await supabase.from("document_versions").insert(input).select().single());
+export async function createVersion(input: Tables["cncvault_document_versions"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_document_versions").insert(input).select().single());
 }
 
 export async function supersedeOlderVersions(documentId: string, currentVersion: number) {
   const { error } = await supabase
-    .from("document_versions")
+    .from("cncvault_document_versions")
     .update({ status: "Superseded" })
     .eq("document_id", documentId)
     .lt("version_number", currentVersion);
@@ -182,7 +182,7 @@ export async function supersedeOlderVersions(documentId: string, currentVersion:
 
 export async function updateVersionStatus(id: string, status: DocStatus) {
   return unwrap(
-    await supabase.from("document_versions").update({ status }).eq("id", id).select().single(),
+    await supabase.from("cncvault_document_versions").update({ status }).eq("id", id).select().single(),
   );
 }
 
@@ -190,61 +190,66 @@ export async function updateVersionStatus(id: string, status: DocStatus) {
 
 export async function listDocumentPermissions(documentId: string) {
   return unwrap(
-    await supabase.from("document_permissions").select("*").eq("document_id", documentId),
+    await supabase.from("cncvault_document_permissions").select("*, profiles:cncvault_profiles(full_name), roles:cncvault_roles(name)").eq("document_id", documentId),
   );
 }
 
 export async function replaceDocumentPermissions(
   documentId: string,
-  rows: Tables["document_permissions"]["Insert"][],
+  rows: Tables["cncvault_document_permissions"]["Insert"][],
 ) {
   const { error } = await supabase
-    .from("document_permissions")
+    .from("cncvault_document_permissions")
     .delete()
     .eq("document_id", documentId);
   if (error) throw new Error(error.message);
   if (rows.length === 0) return;
-  const insert = await supabase.from("document_permissions").insert(rows);
+  const insert = await supabase.from("cncvault_document_permissions").insert(rows);
   if (insert.error) throw new Error(insert.error.message);
 }
 
 /* -------------------------- users and roles -------------------------- */
 
 export async function listProfiles() {
-  return unwrap(await supabase.from("profiles").select("*").order("full_name"));
+  return unwrap(await supabase.from("cncvault_profiles").select("*").order("full_name"));
+}
+
+
+export async function createRole(input: Tables["cncvault_roles"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_roles").insert(input).select().single());
 }
 
 export async function listRoles() {
-  return unwrap(await supabase.from("roles").select("*").order("is_system", { ascending: false }));
+  return unwrap(await supabase.from("cncvault_roles").select("*").order("is_system", { ascending: false }));
 }
 
 export async function listUserRoles() {
-  return unwrap(await supabase.from("user_roles").select("*"));
+  return unwrap(await supabase.from("cncvault_user_roles").select("*"));
 }
 
 export async function setUserRole(userId: string, roleId: string) {
-  const del = await supabase.from("user_roles").delete().eq("user_id", userId);
+  const del = await supabase.from("cncvault_user_roles").delete().eq("user_id", userId);
   if (del.error) throw new Error(del.error.message);
-  const ins = await supabase.from("user_roles").insert({ user_id: userId, role_id: roleId });
+  const ins = await supabase.from("cncvault_user_roles").insert({ user_id: userId, role_id: roleId });
   if (ins.error) throw new Error(ins.error.message);
 }
 
-export async function updateProfile(userId: string, input: Tables["profiles"]["Update"]) {
+export async function updateProfile(userId: string, input: Tables["cncvault_profiles"]["Update"]) {
   return unwrap(
-    await supabase.from("profiles").update(input).eq("user_id", userId).select().single(),
+    await supabase.from("cncvault_profiles").update(input).eq("user_id", userId).select().single(),
   );
 }
 
-export async function createRole(input: Tables["roles"]["Insert"]) {
-  return unwrap(await supabase.from("roles").insert(input).select().single());
+export async function createRole(input: Tables["cncvault_roles"]["Insert"]) {
+  return unwrap(await supabase.from("cncvault_roles").insert(input).select().single());
 }
 
-export async function updateRole(id: string, input: Tables["roles"]["Update"]) {
-  return unwrap(await supabase.from("roles").update(input).eq("id", id).select().single());
+export async function updateRole(id: string, input: Tables["cncvault_roles"]["Update"]) {
+  return unwrap(await supabase.from("cncvault_roles").update(input).eq("id", id).select().single());
 }
 
 export async function deleteRole(id: string) {
-  const { error } = await supabase.from("roles").delete().eq("id", id);
+  const { error } = await supabase.from("cncvault_roles").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -261,7 +266,7 @@ export type AuditFilters = {
 
 export async function listAuditLogs(filters: AuditFilters = {}) {
   let query = supabase
-    .from("audit_logs")
+    .from("cncvault_audit_logs")
     .select("*")
     .order("created_at", { ascending: false })
     .limit(filters.limit ?? 100);
@@ -273,8 +278,8 @@ export async function listAuditLogs(filters: AuditFilters = {}) {
   return unwrap(await query);
 }
 
-export async function logAudit(input: Tables["audit_logs"]["Insert"]) {
-  await supabase.from("audit_logs").insert(input);
+export async function logAudit(input: Tables["cncvault_audit_logs"]["Insert"]) {
+  await supabase.from("cncvault_audit_logs").insert(input);
 }
 
 /* --------------------------- notifications --------------------------- */
@@ -282,24 +287,24 @@ export async function logAudit(input: Tables["audit_logs"]["Insert"]) {
 export async function listNotifications() {
   return unwrap(
     await supabase
-      .from("notifications")
+      .from("cncvault_notifications")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50),
   );
 }
 
-export async function createNotification(input: Tables["notifications"]["Insert"]) {
-  await supabase.from("notifications").insert(input);
+export async function createNotification(input: Tables["cncvault_notifications"]["Insert"]) {
+  await supabase.from("cncvault_notifications").insert(input);
 }
 
 export async function markNotificationRead(id: string, read = true) {
-  const { error } = await supabase.from("notifications").update({ read }).eq("id", id);
+  const { error } = await supabase.from("cncvault_notifications").update({ read }).eq("id", id);
   if (error) throw new Error(error.message);
 }
 
 export async function markAllNotificationsRead() {
-  const { error } = await supabase.from("notifications").update({ read: true }).eq("read", false);
+  const { error } = await supabase.from("cncvault_notifications").update({ read: true }).eq("read", false);
   if (error) throw new Error(error.message);
 }
 
@@ -311,19 +316,19 @@ export async function getDashboardStats() {
   monthStart.setHours(0, 0, 0, 0);
 
   const [documents, drawings, parties, versions, thisMonth, users] = await Promise.all([
-    supabase.from("documents").select("id", { count: "exact", head: true }),
+    supabase.from("cncvault_documents").select("id", { count: "exact", head: true }),
     supabase
-      .from("documents")
+      .from("cncvault_documents")
       .select("id", { count: "exact", head: true })
       .neq("document_type", "CNC Program"),
-    supabase.from("parties").select("id", { count: "exact", head: true }),
-    supabase.from("document_versions").select("id", { count: "exact", head: true }),
+    supabase.from("cncvault_parties").select("id", { count: "exact", head: true }),
+    supabase.from("cncvault_document_versions").select("id", { count: "exact", head: true }),
     supabase
-      .from("document_versions")
+      .from("cncvault_document_versions")
       .select("id", { count: "exact", head: true })
       .gte("uploaded_at", monthStart.toISOString()),
     supabase
-      .from("profiles")
+      .from("cncvault_profiles")
       .select("user_id", { count: "exact", head: true })
       .eq("status", "Active"),
   ]);
@@ -344,15 +349,15 @@ export async function globalSearch(term: string) {
   const q = `%${term.trim().replace(/\s+/g, "%")}%`;
   const [documents, parties, parts] = await Promise.all([
     supabase
-      .from("documents")
-      .select("id, document_number, document_name, part_number, current_version, status, parties(name)")
+      .from("cncvault_documents")
+      .select("id, document_number, document_name, part_number, current_version, status, parties:cncvault_parties(name)")
       .or(
         `document_number.ilike.${q},document_name.ilike.${q},part_number.ilike.${q},drawing_number.ilike.${q},document_type.ilike.${q}`,
       )
       .limit(8),
-    supabase.from("parties").select("id, name, code").or(`name.ilike.${q},code.ilike.${q}`).limit(5),
+    supabase.from("cncvault_parties").select("id, name, code").or(`name.ilike.${q},code.ilike.${q}`).limit(5),
     supabase
-      .from("parts")
+      .from("cncvault_parts")
       .select("id, part_number, part_name, party_id")
       .or(`part_number.ilike.${q},part_name.ilike.${q}`)
       .limit(5),

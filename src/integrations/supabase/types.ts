@@ -14,7 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      audit_logs: {
+      cncvault_audit_logs: {
         Row: {
           action: string
           created_at: string
@@ -59,12 +59,12 @@ export type Database = {
             foreignKeyName: "audit_logs_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
-            referencedRelation: "documents"
+            referencedRelation: "cncvault_documents"
             referencedColumns: ["id"]
           },
         ]
       }
-      document_permissions: {
+      cncvault_document_permissions: {
         Row: {
           created_at: string
           department: string | null
@@ -97,19 +97,19 @@ export type Database = {
             foreignKeyName: "document_permissions_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
-            referencedRelation: "documents"
+            referencedRelation: "cncvault_documents"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "document_permissions_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
-            referencedRelation: "roles"
+            referencedRelation: "cncvault_roles"
             referencedColumns: ["id"]
           },
         ]
       }
-      document_versions: {
+      cncvault_document_versions: {
         Row: {
           document_id: string
           drive_file_id: string | null
@@ -163,12 +163,12 @@ export type Database = {
             foreignKeyName: "document_versions_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
-            referencedRelation: "documents"
+            referencedRelation: "cncvault_documents"
             referencedColumns: ["id"]
           },
         ]
       }
-      documents: {
+      cncvault_documents: {
         Row: {
           category: string | null
           created_at: string
@@ -237,19 +237,19 @@ export type Database = {
             foreignKeyName: "documents_part_id_fkey"
             columns: ["part_id"]
             isOneToOne: false
-            referencedRelation: "parts"
+            referencedRelation: "cncvault_parts"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "documents_party_id_fkey"
             columns: ["party_id"]
             isOneToOne: false
-            referencedRelation: "parties"
+            referencedRelation: "cncvault_parties"
             referencedColumns: ["id"]
           },
         ]
       }
-      notifications: {
+      cncvault_notifications: {
         Row: {
           body: string | null
           created_at: string
@@ -285,17 +285,20 @@ export type Database = {
             foreignKeyName: "notifications_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
-            referencedRelation: "documents"
+            referencedRelation: "cncvault_documents"
             referencedColumns: ["id"]
           },
         ]
       }
-      parties: {
+      cncvault_parties: {
         Row: {
           address: string | null
           code: string
           contact_person: string | null
           created_at: string
+          drive_email: string | null
+          drive_folder_id: string | null
+          drive_refresh_token: string | null
           email: string | null
           id: string
           name: string
@@ -329,7 +332,7 @@ export type Database = {
         }
         Relationships: []
       }
-      parts: {
+      cncvault_parts: {
         Row: {
           created_at: string
           current_revision: number
@@ -371,12 +374,12 @@ export type Database = {
             foreignKeyName: "parts_party_id_fkey"
             columns: ["party_id"]
             isOneToOne: false
-            referencedRelation: "parties"
+            referencedRelation: "cncvault_parties"
             referencedColumns: ["id"]
           },
         ]
       }
-      profiles: {
+      cncvault_profiles: {
         Row: {
           created_at: string
           department: string | null
@@ -409,7 +412,7 @@ export type Database = {
         }
         Relationships: []
       }
-      roles: {
+      cncvault_roles: {
         Row: {
           created_at: string
           description: string | null
@@ -442,7 +445,7 @@ export type Database = {
         }
         Relationships: []
       }
-      user_roles: {
+      cncvault_user_roles: {
         Row: {
           created_at: string
           id: string
@@ -466,7 +469,7 @@ export type Database = {
             foreignKeyName: "user_roles_role_id_fkey"
             columns: ["role_id"]
             isOneToOne: false
-            referencedRelation: "roles"
+            referencedRelation: "cncvault_roles"
             referencedColumns: ["id"]
           },
         ]
