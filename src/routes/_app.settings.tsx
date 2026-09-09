@@ -110,10 +110,10 @@ function PartyDriveFolderSection({ party }: { party: any }) {
   const { data: folders, isLoading } = useQuery({
     queryKey: ['drive_folders', party.id],
     queryFn: () => GoogleDriveService.listFolders(party.id),
-    enabled: !!party.drive_email
+    enabled: !!party.drive_refresh_token || !!party.drive_email
   });
 
-  if (!party.drive_email) return null;
+  if (!party.drive_refresh_token && !party.drive_email) return null;
 
   const folderList = folders || [];
 
@@ -172,11 +172,21 @@ function SettingsPage() {
   const { can } = usePermissions();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('connected=true')) {
+      toast.success("Google Drive connected successfully!");
+      // Clean up URL query parameter without page refresh
+      const url = new URL(window.location.href);
+      url.searchParams.delete('connected');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
   // Fetch Parties for Multi-Tenant Drive Connection
   const { data: parties, isLoading: partiesLoading, refetch: refetchParties } = useQuery({
     queryKey: ['settings_parties'],
     queryFn: async () => {
-      const { data, error } = await supabase.from("cncvault_parties").select("id, name, drive_email, drive_folder_id").order("name");
+      const { data, error } = await supabase.from("cncvault_parties").select("id, name, drive_email, drive_folder_id, drive_refresh_token").order("name");
       if (error) throw error;
       return data;
     },
@@ -358,9 +368,9 @@ function SettingsPage() {
                             </div>
                             <div>
                               <h4 className="font-semibold text-slate-800">{party.name}</h4>
-                              {party.drive_email ? (
+                              {(party.drive_refresh_token || party.drive_email) ? (
                                 <p className="text-sm text-green-600 flex items-center gap-1 font-medium mt-1">
-                                  <Check className="w-4 h-4" /> Connected to {party.drive_email}
+                                  <Check className="w-4 h-4" /> Connected {party.drive_email ? `to ${party.drive_email}` : '(Drive Active)'}
                                 </p>
                               ) : (
                                 <p className="text-sm text-slate-500 mt-1">Not Connected</p>
@@ -368,12 +378,12 @@ function SettingsPage() {
                             </div>
                           </div>
                           <Button 
-                            variant={party.drive_email ? "outline" : "default"}
-                            className={party.drive_email ? "text-slate-600" : "bg-indigo-600 hover:bg-indigo-700"}
+                            variant={(party.drive_refresh_token || party.drive_email) ? "outline" : "default"}
+                            className={(party.drive_refresh_token || party.drive_email) ? "text-slate-600" : "bg-indigo-600 hover:bg-indigo-700"}
                             onClick={() => handleConnectDrive(party.id)}
                           >
                             <Cloud className="w-4 h-4 mr-2" /> 
-                            {party.drive_email ? "Reconnect Drive" : "Connect Drive"}
+                            {(party.drive_refresh_token || party.drive_email) ? "Reconnect Drive" : "Connect Drive"}
                           </Button>
                         </div>
                         <PartyDriveFolderSection party={party} />
