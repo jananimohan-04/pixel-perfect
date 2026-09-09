@@ -169,7 +169,7 @@ function PartyDriveFolderSection({ party }: { party: any }) {
 
 function SettingsPage() {
   const { session, profile } = useAuth();
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, userPartyId } = usePermissions();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -359,7 +359,7 @@ function SettingsPage() {
                     </div>
                   ) : (
                     <div className="space-y-3 mt-4">
-                      {parties?.map(party => (
+                      {parties?.filter(party => isSuperAdmin || party.id === userPartyId).map(party => (
                         <div key={party.id} className="p-4 bg-slate-50 border rounded-lg hover:border-indigo-200 transition-colors">
 <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">

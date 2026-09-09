@@ -29,7 +29,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppShell() {
   const { session, isLoading, role, profile } = useAuth();
-  const { can, isSuperAdmin } = usePermissions();
+  const { can, isSuperAdmin, isCompanyAdmin } = usePermissions();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -102,7 +102,7 @@ function AppShell() {
             </span>
           </div>
         </div>
-          {isSuperAdmin && (
+          {(isSuperAdmin || isCompanyAdmin) && (
             <Button 
               variant="outline" 
               className="w-full justify-start border-blue-500/30 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-3 mb-2"

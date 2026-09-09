@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { getDashboardStats, listAuditLogs, listNotifications, listDocuments } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,18 +13,28 @@ export const Route = createFileRoute("/_app/dashboard")({
 });
 
 function DashboardPage() {
-  const { isSuperAdmin, userPartyId } = usePermissions();
+  const { isSuperAdmin, isCompanyAdmin, isNormalUser, userPartyId, profile } = usePermissions();
   const effectivePartyId = isSuperAdmin ? undefined : (userPartyId || undefined);
 
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats", effectivePartyId],
-    queryFn: () => getDashboardStats(effectivePartyId),
+    queryKey: ["dashboard-stats", effectivePartyId, isNormalUser, profile?.full_name],
+    queryFn: () => getDashboardStats(effectivePartyId, isNormalUser, profile?.full_name || undefined),
   });
 
-  const { data: recentDocs, isLoading: docsLoading } = useQuery({
+  const { data: recentDocsData, isLoading: docsLoading } = useQuery({
     queryKey: ["dashboard-recent-docs", effectivePartyId],
-    queryFn: () => listDocuments({ partyId: effectivePartyId, pageSize: 5 }),
+    queryFn: () => listDocuments({ partyId: effectivePartyId, pageSize: 20 }),
   });
+
+  const recentDocsList = useMemo(() => {
+    if (!recentDocsData?.rows) return [];
+    if (isSuperAdmin || isCompanyAdmin) return recentDocsData.rows.slice(0, 5);
+    return recentDocsData.rows.filter(doc =>
+      doc.status === "Approved" ||
+      doc.status === "Released" ||
+      doc.updated_by_name === profile?.full_name
+    ).slice(0, 5);
+  }, [recentDocsData, isSuperAdmin, isCompanyAdmin, profile]);
 
   const { data: recentActivity, isLoading: activityLoading } = useQuery({
     queryKey: ["dashboard-recent-activity"],
@@ -107,7 +118,7 @@ function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentDocs?.rows.map((doc) => (
+                    {recentDocsList.map((doc) => (
                       <tr key={doc.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-indigo-600">{doc.document_number}</td>
                         <td className="px-4 py-3 text-slate-600">{doc.parties?.name || "-"}</td>
@@ -120,7 +131,7 @@ function DashboardPage() {
                         </td>
                       </tr>
                     ))}
-                    {(!recentDocs?.rows || recentDocs.rows.length === 0) && (
+                    {(!recentDocsList || recentDocsList.length === 0) && (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
                           No recent documents found.

@@ -22,6 +22,22 @@ export function usePermissions() {
 
   const can = (permission: Permission) => {
     if (isSuperAdmin) return true;
+
+    // Company Admins have administrative rights within their company
+    if (isCompanyAdmin) {
+      if (
+        permission === "manage_users" ||
+        permission === "manage_settings" ||
+        permission === "manage_documents" ||
+        permission === "upload" ||
+        permission === "view" ||
+        permission === "download" ||
+        permission === "create_folders"
+      ) {
+        return true;
+      }
+    }
+
     if (!role) return false;
 
     // Check if the role permissions array contains the permission key

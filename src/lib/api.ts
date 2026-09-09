@@ -349,27 +349,35 @@ export async function markAllNotificationsRead() {
 
 /* ----------------------------- dashboard ----------------------------- */
 
-export async function getDashboardStats() {
+export async function getDashboardStats(partyId?: string, isNormalUser?: boolean, profileName?: string) {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
+  let docQuery = supabase.from("cncvault_documents").select("id", { count: "exact", head: true });
+  let dwgQuery = supabase.from("cncvault_documents").select("id", { count: "exact", head: true }).neq("document_type", "CNC Program");
+  let partyQuery = supabase.from("cncvault_parties").select("id", { count: "exact", head: true });
+  let userQuery = supabase.from("cncvault_profiles").select("user_id", { count: "exact", head: true }).eq("status", "Active");
+
+  if (partyId) {
+    docQuery = docQuery.eq("party_id", partyId);
+    dwgQuery = dwgQuery.eq("party_id", partyId);
+    partyQuery = partyQuery.eq("id", partyId);
+    userQuery = userQuery.eq("party_id", partyId);
+  }
+
+  if (isNormalUser && profileName) {
+    docQuery = docQuery.or(`status.eq.Approved,status.eq.Released,updated_by_name.eq.${profileName}`);
+    dwgQuery = dwgQuery.or(`status.eq.Approved,status.eq.Released,updated_by_name.eq.${profileName}`);
+  }
+
   const [documents, drawings, parties, versions, thisMonth, users] = await Promise.all([
-    supabase.from("cncvault_documents").select("id", { count: "exact", head: true }),
-    supabase
-      .from("cncvault_documents")
-      .select("id", { count: "exact", head: true })
-      .neq("document_type", "CNC Program"),
-    supabase.from("cncvault_parties").select("id", { count: "exact", head: true }),
+    docQuery,
+    dwgQuery,
+    partyQuery,
     supabase.from("cncvault_document_versions").select("id", { count: "exact", head: true }),
-    supabase
-      .from("cncvault_document_versions")
-      .select("id", { count: "exact", head: true })
-      .gte("uploaded_at", monthStart.toISOString()),
-    supabase
-      .from("cncvault_profiles")
-      .select("user_id", { count: "exact", head: true })
-      .eq("status", "Active"),
+    supabase.from("cncvault_document_versions").select("id", { count: "exact", head: true }).gte("uploaded_at", monthStart.toISOString()),
+    userQuery,
   ]);
 
   return {
