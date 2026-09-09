@@ -76,10 +76,10 @@ function CreateFolderModal({ partyId, partyName, folders, open, onOpenChange }: 
                 <SelectValue placeholder="Select parent location..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="root">?? CNC Vault (Root)</SelectItem>
+                <SelectItem value="root">📁 CNC Vault (Root)</SelectItem>
                 {folders.map(f => (
                   <SelectItem key={f.id} value={f.id}>
-                    ?? {f.name}
+                    📁 {f.name}
                   </SelectItem>
                 ))}
               </SelectContent>
