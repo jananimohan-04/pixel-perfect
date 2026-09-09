@@ -88,7 +88,7 @@ export async function listDocuments(filters: DocumentFilters = {}) {
   const pageSize = filters.pageSize ?? 12;
   let query = supabase
     .from("cncvault_documents")
-    .select("*, parties:cncvault_parties(id, name, code)", { count: "exact" });
+    .select("*, parties:cncvault_parties(id, name, code), versions:cncvault_document_versions(*)", { count: "exact" });
 
   if (filters.search) {
     const q = `%${filters.search.trim().replace(/\s+/g, "%")}%`;

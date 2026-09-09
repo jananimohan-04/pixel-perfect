@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
 
@@ -105,6 +105,30 @@ function DocumentsPage() {
   const [viewMode, setViewMode] = useState<"list" | "folders">("folders");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
+
+  const handlePreview = (fileId: string, docId: string) => {
+    toast.loading("Loading preview...");
+    GoogleDriveService.getViewUrl(fileId, docId)
+      .then(url => {
+        toast.dismiss();
+        window.open(url, '_blank');
+      })
+      .catch(e => {
+        toast.dismiss();
+        toast.error(e.message || "Failed to preview file");
+      });
+  };
+
+  const handleDownload = (fileId: string, docId: string, fileName: string) => {
+    toast.loading("Downloading file...");
+    GoogleDriveService.downloadFile(fileId, docId, fileName)
+      .then(() => toast.dismiss())
+      .catch(e => {
+        toast.dismiss();
+        toast.error(e.message || "Failed to download file");
+      });
+  };
+
   const pageSize = 12;
 
   // Debounce search
