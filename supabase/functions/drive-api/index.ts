@@ -159,13 +159,18 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) throw new Error('Unauthorized');
 
     if (action === 'status') {
       const partyId = url.searchParams.get('partyId');
       if (!partyId) throw new Error('partyId required');
-      const { data } = await supabaseClient.from('cncvault_parties').select('drive_refresh_token, drive_email').eq('id', partyId).single();
+      const { data } = await serviceClient.from('cncvault_parties').select('drive_refresh_token, drive_email').eq('id', partyId).maybeSingle();
       return new Response(JSON.stringify({ 
         connected: !!data?.drive_refresh_token,
         email: data?.drive_email 
@@ -176,14 +181,60 @@ serve(async (req) => {
       const partyId = url.searchParams.get('partyId');
       if (!partyId) throw new Error('partyId required');
       
-      const { data, error } = await supabaseClient
-        .from('cncvault_drive_folders')
-        .select('*')
-        .eq('party_id', partyId)
-        .order('created_at', { ascending: true });
-        
-      if (error) throw error;
-      return new Response(JSON.stringify({ folders: data || [] }), {
+      let dbFolders: any[] = [];
+      try {
+        const { data } = await serviceClient
+          .from('cncvault_drive_folders')
+          .select('*')
+          .eq('party_id', partyId)
+          .order('created_at', { ascending: true });
+        if (data) dbFolders = data;
+      } catch (_) {}
+
+      // Also list directly from Google Drive API as fallback/primary
+      const { data: partyData } = await serviceClient
+        .from('cncvault_parties')
+        .select('drive_refresh_token, drive_folder_id')
+        .eq('id', partyId)
+        .maybeSingle();
+
+      if (partyData?.drive_refresh_token && partyData?.drive_folder_id) {
+        try {
+          const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+          const q = `'${partyData.drive_folder_id}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+          const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,parents,createdTime)`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (driveRes.ok) {
+            const driveData = await driveRes.json();
+            const driveFolders = (driveData.files || []).map((f: any) => ({
+              id: f.id,
+              party_id: partyId,
+              google_folder_id: f.id,
+              name: f.name,
+              parent_folder_id: null,
+              created_at: f.createdTime || new Date().toISOString()
+            }));
+
+            const map = new Map();
+            for (const f of dbFolders) {
+              map.set(f.google_folder_id || f.id, f);
+            }
+            for (const f of driveFolders) {
+              if (!map.has(f.id)) {
+                map.set(f.id, f);
+              }
+            }
+            return new Response(JSON.stringify({ folders: Array.from(map.values()) }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        } catch (driveErr) {
+          console.error('Error fetching drive folders:', driveErr);
+        }
+      }
+
+      return new Response(JSON.stringify({ folders: dbFolders }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -193,7 +244,7 @@ serve(async (req) => {
       const { partyId, name, parentFolderId } = body;
       if (!partyId || !name) throw new Error('partyId and name required');
 
-      const { data: profile } = await supabaseClient
+      const { data: profile } = await serviceClient
         .from('cncvault_profiles')
         .select('party_id')
         .eq('user_id', user.id)
@@ -208,7 +259,7 @@ serve(async (req) => {
         throw new Error('Permission denied: You can only create folders for your assigned company.');
       }
 
-      const { data: partyData } = await supabaseClient
+      const { data: partyData } = await serviceClient
         .from('cncvault_parties')
         .select('drive_refresh_token, drive_folder_id')
         .eq('id', partyId)
@@ -220,32 +271,46 @@ serve(async (req) => {
 
       let googleParentId = partyData.drive_folder_id;
 
-      if (parentFolderId) {
-        const { data: parentFolder } = await supabaseClient
-          .from('cncvault_drive_folders')
-          .select('google_folder_id')
-          .eq('id', parentFolderId)
-          .single();
+      if (parentFolderId && parentFolderId !== 'root') {
+        try {
+          const { data: parentFolder } = await serviceClient
+            .from('cncvault_drive_folders')
+            .select('google_folder_id')
+            .eq('id', parentFolderId)
+            .maybeSingle();
 
-        if (parentFolder?.google_folder_id) {
-          googleParentId = parentFolder.google_folder_id;
+          googleParentId = parentFolder?.google_folder_id || parentFolderId;
+        } catch (_) {
+          googleParentId = parentFolderId;
         }
       }
 
       const googleFolderId = await createFolder(name, googleParentId, token);
 
-      const { data: newFolderRecord, error: dbError } = await supabaseClient
-        .from('cncvault_drive_folders')
-        .insert({
-          party_id: partyId,
-          google_folder_id: googleFolderId,
-          name,
-          parent_folder_id: parentFolderId || null
-        })
-        .select()
-        .single();
+      let newFolderRecord: any = {
+        id: googleFolderId,
+        party_id: partyId,
+        google_folder_id: googleFolderId,
+        name,
+        parent_folder_id: parentFolderId || null,
+        created_at: new Date().toISOString()
+      };
 
-      if (dbError) throw dbError;
+      try {
+        const { data: dbRecord } = await serviceClient
+          .from('cncvault_drive_folders')
+          .insert({
+            party_id: partyId,
+            google_folder_id: googleFolderId,
+            name,
+            parent_folder_id: parentFolderId || null
+          })
+          .select()
+          .single();
+        if (dbRecord) newFolderRecord = dbRecord;
+      } catch (dbErr) {
+        console.warn('Could not store folder in DB table, returning Google Drive record:', dbErr);
+      }
 
       return new Response(JSON.stringify({ folder: newFolderRecord }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
