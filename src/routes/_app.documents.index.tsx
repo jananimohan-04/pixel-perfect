@@ -94,7 +94,7 @@ function DocumentRow({ doc, can, navigate }: { doc: any; can: any; navigate: any
 }
 
 function DocumentsPage() {
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, isCompanyAdmin, isNormalUser, userPartyId, profile } = usePermissions();
   const navigate = useNavigate();
   
   const [search, setSearch] = useState("");
@@ -145,22 +145,24 @@ function DocumentsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const effectivePartyId = isSuperAdmin ? (partyId !== "all" ? partyId : undefined) : (userPartyId || undefined);
+
   const { data: parties } = useQuery({
     queryKey: ["parties-list"],
     queryFn: listParties,
   });
 
   const { data: partyFolders } = useQuery({
-    queryKey: ["drive_folders", partyId],
-    queryFn: () => GoogleDriveService.listFolders(partyId),
-    enabled: partyId !== "all",
+    queryKey: ["drive_folders", effectivePartyId],
+    queryFn: () => GoogleDriveService.listFolders(effectivePartyId!),
+    enabled: !!effectivePartyId,
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["documents", debouncedSearch, partyId, folderId, status, docType, page, viewMode],
+    queryKey: ["documents", debouncedSearch, effectivePartyId, folderId, status, docType, page, viewMode],
     queryFn: () => listDocuments({
       search: debouncedSearch || undefined,
-      partyId: partyId !== "all" ? partyId : undefined,
+      partyId: effectivePartyId,
       folderId: folderId !== "all" ? folderId : undefined,
       status: status !== "all" ? status : undefined,
       documentType: docType !== "all" ? docType : undefined,
@@ -168,6 +170,17 @@ function DocumentsPage() {
       pageSize: viewMode === "list" ? pageSize : 100,
     }),
   });
+
+  const filteredRows = useMemo(() => {
+    if (!data?.rows) return [];
+    if (isSuperAdmin || isCompanyAdmin) return data.rows;
+    // Normal dept user (Viewer / Engineer): see company documents that are Approved, Released, or created by them
+    return data.rows.filter(doc => 
+      doc.status === "Approved" || 
+      doc.status === "Released" || 
+      doc.updated_by_name === profile?.full_name
+    );
+  }, [data, isSuperAdmin, isCompanyAdmin, profile]);
 
   const handleResetFilters = () => {
     setSearch("");
@@ -229,17 +242,24 @@ function DocumentsPage() {
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Party" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Parties</SelectItem>
-              {parties?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isSuperAdmin ? (
+            <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Party" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Parties</SelectItem>
+                {parties?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-md text-xs font-semibold text-indigo-800">
+              <Building className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className="truncate">{parties?.find(p => p.id === userPartyId)?.name || "My Company"}</span>
+            </div>
+          )}
 
           {partyId !== "all" && (
             <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
@@ -292,7 +312,7 @@ function DocumentsPage() {
         <div className="space-y-6">
           {isLoading ? (
             <div className="bg-white p-8 rounded-lg border text-center text-slate-500">Loading Google Drive structure...</div>
-          ) : !data || data.rows.length === 0 ? (
+          ) : !data || filteredRows.length === 0 ? (
             <div className="bg-white p-8 rounded-lg border text-center text-slate-500">
               <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p>No documents found matching your criteria.</p>
@@ -302,7 +322,7 @@ function DocumentsPage() {
               // Group documents by Party first
               const partyMap: Record<string, { partyInfo: any; docs: any[] }> = {};
               
-              data.rows.forEach(doc => {
+              filteredRows.forEach(doc => {
                 const pId = doc.party_id || 'internal';
                 if (!partyMap[pId]) {
                   partyMap[pId] = {
@@ -487,7 +507,7 @@ function DocumentsPage() {
                     Loading documents...
                   </TableCell>
                 </TableRow>
-              ) : !data || data.rows.length === 0 ? (
+              ) : !data || filteredRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center">
@@ -497,7 +517,7 @@ function DocumentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                data.rows.map((doc) => (
+                filteredRows.map((doc) => (
                   <DocumentRow key={doc.id} doc={doc} can={can} navigate={navigate} />
                 ))
               )}

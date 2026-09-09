@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { listProfiles, listRoles, listUserRoles, listParties, setUserRole, updateProfile } from "@/lib/api";
+import { listProfiles, listRoles, listUserRoles, listParties, setUserRole, updateProfile, createAuthUserWithoutLogin } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,12 @@ export const Route = createFileRoute("/_app/users")({
 });
 
 function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { isSuperAdmin, userPartyId } = usePermissions();
   const queryClient = useQueryClient();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("User@1234");
-  const [partyId, setPartyId] = useState<string>("internal");
+  const [partyId, setPartyId] = useState<string>(userPartyId || "internal");
   const [isCreateCompanyOpen, setIsCreateCompanyOpen] = useState(false);
   const [roleId, setRoleId] = useState<string>("");
   const [department, setDepartment] = useState("");
@@ -44,19 +45,9 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
     mutationFn: async () => {
       if (!email || !fullName) throw new Error("Email and Full Name are required");
       
-      // 1. Sign up user via Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-        options: {
-          data: { full_name: fullName.trim() }
-        }
-      });
-
-      if (authError) throw authError;
-
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("Failed to register user credentials");
+      // 1. Create auth user without logging out active session
+      const user = await createAuthUserWithoutLogin(email, password, fullName);
+      const userId = user.id;
 
       // 2. Save Profile
       await updateProfile(userId, {
@@ -347,7 +338,7 @@ function ManageRoleModal({ profile, currentRoleId, open, onOpenChange }: { profi
 }
 
 function UsersPage() {
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, userPartyId } = usePermissions();
   const queryClient = useQueryClient();
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -355,8 +346,8 @@ function UsersPage() {
   const [roleManagingProfile, setRoleManagingProfile] = useState<any>(null);
 
   const { data: profiles, isLoading: profilesLoading } = useQuery({
-    queryKey: ["users-list"],
-    queryFn: listProfiles,
+    queryKey: ["users-list", isSuperAdmin ? "all" : userPartyId],
+    queryFn: () => listProfiles(isSuperAdmin ? undefined : (userPartyId || undefined)),
     enabled: can("manage_users"),
   });
 

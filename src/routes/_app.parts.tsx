@@ -119,10 +119,12 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
 }
 
 function PartsPage() {
-  const { can } = usePermissions();
+  const { can, isSuperAdmin, userPartyId } = usePermissions();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [partyId, setPartyId] = useState<string>("all");
+
+  const effectivePartyId = isSuperAdmin ? (partyId !== "all" ? partyId : undefined) : (userPartyId || undefined);
 
   const { data: parties } = useQuery({
     queryKey: ["parties-list"],
@@ -130,8 +132,8 @@ function PartsPage() {
   });
 
   const { data: parts, isLoading, refetch } = useQuery({
-    queryKey: ["parts-list", partyId],
-    queryFn: () => listParts(partyId !== "all" ? partyId : undefined),
+    queryKey: ["parts-list", effectivePartyId],
+    queryFn: () => listParts(effectivePartyId),
   });
 
   const filteredParts = parts?.filter(p => 
@@ -166,17 +168,23 @@ function PartsPage() {
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full md:w-auto">
-          <Select value={partyId} onValueChange={setPartyId}>
-            <SelectTrigger className="w-full md:w-[200px]">
-              <SelectValue placeholder="Party" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Parties</SelectItem>
-              {parties?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {isSuperAdmin ? (
+            <Select value={partyId} onValueChange={setPartyId}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Party" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Parties</SelectItem>
+                {parties?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-md text-xs font-semibold text-indigo-800">
+              <span className="truncate">{parties?.find(p => p.id === userPartyId)?.name || "My Company"}</span>
+            </div>
+          )}
 
           <Button variant="outline" onClick={() => { setSearch(""); setPartyId("all"); }} className="w-full">
             <FilterX className="w-4 h-4 mr-2" />

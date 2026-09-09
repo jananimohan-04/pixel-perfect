@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import type { DocStatus } from "./rbac";
@@ -218,8 +219,41 @@ export async function replaceDocumentPermissions(
 
 /* -------------------------- users and roles -------------------------- */
 
-export async function listProfiles() {
-  return unwrap(await supabase.from("cncvault_profiles").select("*, party:cncvault_parties(id, name, code)").order("full_name"));
+export async function createAuthUserWithoutLogin(email: string, password: string, fullName: string) {
+  const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase URL or Publishable Key is missing");
+  }
+
+  const tempClient = createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+
+  const { data, error } = await tempClient.auth.signUp({
+    email: email.trim(),
+    password: password,
+    options: {
+      data: { full_name: fullName.trim() },
+    },
+  });
+
+  if (error) throw error;
+  if (!data.user?.id) throw new Error("Failed to register user credentials");
+  return data.user;
+}
+
+export async function listProfiles(partyId?: string) {
+  let query = supabase.from("cncvault_profiles").select("*, party:cncvault_parties(id, name, code)").order("full_name");
+  if (partyId) {
+    query = query.eq("party_id", partyId);
+  }
+  return unwrap(await query);
 }
 
 export async function updateProfile(userId: string, input: Tables["cncvault_profiles"]["Update"]) {

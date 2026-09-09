@@ -129,7 +129,7 @@ function PartiesPage() {
             Manage customers, suppliers, and internal departments.
           </p>
         </div>
-        {can("manage_parties") && (
+        {isSuperAdmin && can("manage_parties") && (
           <AddPartyDialog onAdded={() => refetch()} />
         )}
       </div>
@@ -152,7 +152,7 @@ function PartiesPage() {
                   Loading parties...
                 </TableCell>
               </TableRow>
-            ) : !parties || parties.length === 0 ? (
+            ) : !displayParties || displayParties.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center">
@@ -162,7 +162,7 @@ function PartiesPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              parties.map((party) => (
+              displayParties.map((party) => (
                 <TableRow key={party.id} className="hover:bg-slate-50">
                   <TableCell>
                     <div className="font-medium text-slate-900">{party.name}</div>
@@ -203,7 +203,7 @@ function PartiesPage() {
                         <DropdownMenuItem>
                           <Building2 className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        {can("manage_parties") && (
+                        {isSuperAdmin && can("manage_parties") && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>

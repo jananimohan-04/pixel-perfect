@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getDashboardStats, listAuditLogs, listNotifications, listDocuments } from "@/lib/api";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Building2, Layers, Upload, Users, FileType, Activity } from "lucide-react";
 import { format } from "date-fns";
@@ -11,14 +12,17 @@ export const Route = createFileRoute("/_app/dashboard")({
 });
 
 function DashboardPage() {
+  const { isSuperAdmin, userPartyId } = usePermissions();
+  const effectivePartyId = isSuperAdmin ? undefined : (userPartyId || undefined);
+
   const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: getDashboardStats,
+    queryKey: ["dashboard-stats", effectivePartyId],
+    queryFn: () => getDashboardStats(effectivePartyId),
   });
 
   const { data: recentDocs, isLoading: docsLoading } = useQuery({
-    queryKey: ["dashboard-recent-docs"],
-    queryFn: () => listDocuments({ pageSize: 5 }),
+    queryKey: ["dashboard-recent-docs", effectivePartyId],
+    queryFn: () => listDocuments({ partyId: effectivePartyId, pageSize: 5 }),
   });
 
   const { data: recentActivity, isLoading: activityLoading } = useQuery({
