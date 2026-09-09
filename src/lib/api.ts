@@ -240,9 +240,7 @@ export async function updateProfile(userId: string, input: Tables["cncvault_prof
   );
 }
 
-export async function createRole(input: Tables["cncvault_roles"]["Insert"]) {
-  return unwrap(await supabase.from("cncvault_roles").insert(input).select().single());
-}
+
 
 export async function updateRole(id: string, input: Tables["cncvault_roles"]["Update"]) {
   return unwrap(await supabase.from("cncvault_roles").update(input).eq("id", id).select().single());
