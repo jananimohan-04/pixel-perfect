@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { createParty } from "@/lib/api";
+import { createParty, updateParty, Party } from "@/lib/api";
 
 import { useQuery } from "@tanstack/react-query";
 import { listParties } from "@/lib/api";
@@ -12,8 +12,9 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Building2, Plus, Mail, Phone, MoreHorizontal, Edit, Archive } from "lucide-react";
+import { Building2, Plus, Mail, Phone, MoreHorizontal, Edit, Archive, Eye } from "lucide-react";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -26,7 +27,6 @@ export const Route = createFileRoute("/_app/parties")({
   component: PartiesPage,
 });
 
-
 function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,22 +38,21 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
   const [phone, setPhone] = useState("");
 
   const handleSave = async () => {
-    if (!name || !code) return toast.error("Name and Code are required");
+    if (!name.trim() || !code.trim()) return toast.error("Name and Code are required");
     
     setLoading(true);
     try {
       await createParty({
-        name,
-        code,
-        contact_person: contact,
-        email,
-        phone,
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        contact_person: contact.trim() || null,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
         status: "Active"
       });
       toast.success("Party added successfully");
       setOpen(false);
       onAdded();
-      // Reset form
       setName(""); setCode(""); setContact(""); setEmail(""); setPhone("");
     } catch (err: any) {
       toast.error(err.message || "Failed to add party");
@@ -74,23 +73,23 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
         <DialogHeader>
           <DialogTitle>Add New Party</DialogTitle>
           <DialogDescription>
-            Create a new company, supplier, or internal department.
+            Create a new customer company, supplier, or internal department.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Company Name *</Label>
-              <Input value={name} onChange={e => setName(e.target.value)} placeholder="ABC Engineering" />
+              <Label>Company / Party Name *</Label>
+              <Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. ABC Engineering" />
             </div>
             <div className="space-y-2">
               <Label>Code / Short Name *</Label>
-              <Input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="ABC" />
+              <Input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="e.g. ABC" maxLength={10} />
             </div>
           </div>
           <div className="space-y-2">
             <Label>Contact Person</Label>
-            <Input value={contact} onChange={e => setContact(e.target.value)} placeholder="John Doe" />
+            <Input value={contact} onChange={e => setContact(e.target.value)} placeholder="e.g. John Doe" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -99,13 +98,170 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
-              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="555-0199" />
+              <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 555-0199" />
             </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={loading}>{loading ? "Saving..." : "Add Party"}</Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={handleSave} disabled={loading}>
+            {loading ? "Saving..." : "Add Party"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ViewPartyModal({ party, open, onOpenChange }: { party: Party | null; open: boolean; onOpenChange: (open: boolean) => void }) {
+  if (!party) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-indigo-900">
+            <Building2 className="w-5 h-5 text-indigo-600" />
+            {party.name}
+          </DialogTitle>
+          <DialogDescription>Party / Company profile and contact information.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2 text-sm">
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Party Name:</span>
+            <span className="font-semibold text-slate-800">{party.name}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Code:</span>
+            <Badge variant="outline" className="font-mono">{party.code}</Badge>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Contact Person:</span>
+            <span className="text-slate-800">{party.contact_person || "—"}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Email:</span>
+            <span className="text-slate-800">{party.email || "—"}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Phone:</span>
+            <span className="text-slate-800">{party.phone || "—"}</span>
+          </div>
+          <div className="flex justify-between py-1.5 border-b border-slate-100">
+            <span className="text-slate-500 font-medium">Status:</span>
+            <Badge variant={party.status === "Active" ? "default" : "secondary"}>{party.status}</Badge>
+          </div>
+          <div className="flex justify-between py-1.5">
+            <span className="text-slate-500 font-medium">Created Date:</span>
+            <span className="text-slate-800">{party.created_at ? format(new Date(party.created_at), "MMM d, yyyy") : "—"}</span>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditPartyModal({ party, open, onOpenChange, onSaved }: { party: Party | null; open: boolean; onOpenChange: (open: boolean) => void; onSaved: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState(party?.name || "");
+  const [code, setCode] = useState(party?.code || "");
+  const [contact, setContact] = useState(party?.contact_person || "");
+  const [email, setEmail] = useState(party?.email || "");
+  const [phone, setPhone] = useState(party?.phone || "");
+  const [status, setStatus] = useState<"Active" | "Inactive">(party?.status || "Active");
+
+  useEffect(() => {
+    if (party) {
+      setName(party.name || "");
+      setCode(party.code || "");
+      setContact(party.contact_person || "");
+      setEmail(party.email || "");
+      setPhone(party.phone || "");
+      setStatus((party.status as "Active" | "Inactive") || "Active");
+    }
+  }, [party]);
+
+  const handleUpdate = async () => {
+    if (!party) return;
+    if (!name.trim() || !code.trim()) return toast.error("Name and Code are required");
+
+    setLoading(true);
+    try {
+      await updateParty(party.id, {
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        contact_person: contact.trim() || null,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        status: status,
+      });
+      toast.success("Party updated successfully!");
+      onSaved();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update party");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-indigo-900">
+            <Edit className="w-5 h-5 text-indigo-600" />
+            Edit Party Details
+          </DialogTitle>
+          <DialogDescription>Update company or party profile information.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Party Name *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Code *</Label>
+              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={10} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Contact Person</Label>
+            <Input value={contact} onChange={(e) => setContact(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(val: "Active" | "Inactive") => setStatus(val)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button className="bg-indigo-600 hover:bg-indigo-700" onClick={handleUpdate} disabled={loading}>
+            {loading ? "Saving..." : "Save Changes"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -114,6 +270,8 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
 
 function PartiesPage() {
   const { can, isSuperAdmin, isCompanyAdmin } = usePermissions();
+  const [selectedPartyForView, setSelectedPartyForView] = useState<Party | null>(null);
+  const [selectedPartyForEdit, setSelectedPartyForEdit] = useState<Party | null>(null);
   
   const { data: parties, isLoading, refetch } = useQuery({
     queryKey: ["parties-list"],
@@ -121,6 +279,17 @@ function PartiesPage() {
   });
 
   const displayParties = parties || [];
+
+  const handleArchiveToggle = async (party: Party) => {
+    const newStatus = party.status === "Active" ? "Inactive" : "Active";
+    try {
+      await updateParty(party.id, { status: newStatus });
+      toast.success(`Party "${party.name}" status changed to ${newStatus}`);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update party status");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -135,6 +304,19 @@ function PartiesPage() {
           <AddPartyDialog onAdded={() => refetch()} />
         )}
       </div>
+
+      <ViewPartyModal 
+        party={selectedPartyForView} 
+        open={!!selectedPartyForView} 
+        onOpenChange={(open) => !open && setSelectedPartyForView(null)} 
+      />
+
+      <EditPartyModal 
+        party={selectedPartyForEdit} 
+        open={!!selectedPartyForEdit} 
+        onOpenChange={(open) => !open && setSelectedPartyForEdit(null)} 
+        onSaved={() => refetch()} 
+      />
 
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
         <Table>
@@ -191,7 +373,7 @@ function PartiesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-slate-500">
-                    {format(new Date(party.created_at), "MMM d, yyyy")}
+                    {party.created_at ? format(new Date(party.created_at), "MMM d, yyyy") : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -202,17 +384,21 @@ function PartiesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Building2 className="mr-2 h-4 w-4" /> View Details
+                        <DropdownMenuItem onClick={() => setSelectedPartyForView(party)}>
+                          <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
                         {(isSuperAdmin || isCompanyAdmin || can("manage_parties")) && (
                           <>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setSelectedPartyForEdit(party)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
-                              <Archive className="mr-2 h-4 w-4" /> Archive
+                            <DropdownMenuItem 
+                              className={party.status === "Active" ? "text-amber-600" : "text-emerald-600"}
+                              onClick={() => handleArchiveToggle(party)}
+                            >
+                              <Archive className="mr-2 h-4 w-4" /> 
+                              {party.status === "Active" ? "Archive (Deactivate)" : "Activate"}
                             </DropdownMenuItem>
                           </>
                         )}
