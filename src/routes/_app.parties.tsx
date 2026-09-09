@@ -113,16 +113,14 @@ function AddPartyDialog({ onAdded }: { onAdded: () => void }) {
 }
 
 function PartiesPage() {
-  const { can, isSuperAdmin, userPartyId } = usePermissions();
+  const { can, isSuperAdmin, isCompanyAdmin } = usePermissions();
   
   const { data: parties, isLoading, refetch } = useQuery({
     queryKey: ["parties-list"],
     queryFn: listParties,
   });
 
-  const displayParties = isSuperAdmin 
-    ? parties 
-    : parties?.filter(p => p.id === userPartyId);
+  const displayParties = parties || [];
 
   return (
     <div className="space-y-6">
@@ -130,10 +128,10 @@ function PartiesPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Parties</h2>
           <p className="text-muted-foreground mt-1">
-            Manage customers, suppliers, and internal departments.
+            Manage customer companies, suppliers, vendors, and internal departments.
           </p>
         </div>
-        {isSuperAdmin && can("manage_parties") && (
+        {(isSuperAdmin || isCompanyAdmin || can("manage_parties")) && (
           <AddPartyDialog onAdded={() => refetch()} />
         )}
       </div>
@@ -207,7 +205,7 @@ function PartiesPage() {
                         <DropdownMenuItem>
                           <Building2 className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        {isSuperAdmin && can("manage_parties") && (
+                        {(isSuperAdmin || isCompanyAdmin || can("manage_parties")) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem>

@@ -408,10 +408,10 @@ function UploadWizardPage() {
                       <SelectValue placeholder="Select target folder..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="root">?? CNC Vault (Root Folder)</SelectItem>
+                      <SelectItem value="root">📁 CNC Vault (Root Folder)</SelectItem>
                       {partyFolders?.map(f => (
                         <SelectItem key={f.id} value={f.google_folder_id}>
-                          ?? {f.name}
+                          📁 {f.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
