@@ -189,12 +189,24 @@ serve(async (req) => {
     }
 
     if (action === 'create-folder' && req.method === 'POST') {
-      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'manage_settings' });
-      if (!rbacCheck) throw new Error('Permission denied');
-
       const body = await req.json();
       const { partyId, name, parentFolderId } = body;
       if (!partyId || !name) throw new Error('partyId and name required');
+
+      const { data: profile } = await supabaseClient
+        .from('cncvault_profiles')
+        .select('party_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const isSuperAdmin = !profile?.party_id;
+      const isSameParty = profile?.party_id === partyId;
+      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'manage_settings' });
+      const { data: uploadCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
+
+      if (!isSuperAdmin && !isSameParty && !rbacCheck && !uploadCheck) {
+        throw new Error('Permission denied: You can only create folders for your assigned company.');
+      }
 
       const { data: partyData } = await supabaseClient
         .from('cncvault_parties')
@@ -241,9 +253,6 @@ serve(async (req) => {
     }
 
     if (action === 'upload' && req.method === 'POST') {
-      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
-      if (!rbacCheck) throw new Error('Permission denied');
-
       const formData = await req.formData();
       const file = formData.get('file') as File;
       const partyId = formData.get('partyId') as string;
@@ -251,6 +260,18 @@ serve(async (req) => {
       const version = formData.get('version') as string;
       const targetFolderId = (formData.get('targetFolderId') as string) || '';
 
+      const { data: profile } = await supabaseClient
+        .from('cncvault_profiles')
+        .select('party_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const isSuperAdmin = !profile?.party_id;
+      const isSameParty = profile?.party_id === partyId;
+      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
+
+      if (!isSuperAdmin && !isSameParty && !rbacCheck) {
+        throw new Error('Permission denied');
       if (!file || !partyId || !documentNumber || !version) {
         throw new Error('Missing fields');
       }
