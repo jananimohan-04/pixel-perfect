@@ -219,7 +219,11 @@ export async function replaceDocumentPermissions(
 /* -------------------------- users and roles -------------------------- */
 
 export async function listProfiles() {
-  return unwrap(await supabase.from("cncvault_profiles").select("*").order("full_name"));
+  return unwrap(await supabase.from("cncvault_profiles").select("*, party:cncvault_parties(id, name, code)").order("full_name"));
+}
+
+export async function updateProfile(userId: string, input: Tables["cncvault_profiles"]["Update"]) {
+  return unwrap(await supabase.from("cncvault_profiles").update(input).eq("user_id", userId).select().single());
 }
 
 
@@ -242,11 +246,6 @@ export async function setUserRole(userId: string, roleId: string) {
   if (ins.error) throw new Error(ins.error.message);
 }
 
-export async function updateProfile(userId: string, input: Tables["cncvault_profiles"]["Update"]) {
-  return unwrap(
-    await supabase.from("cncvault_profiles").update(input).eq("user_id", userId).select().single(),
-  );
-}
 
 
 
