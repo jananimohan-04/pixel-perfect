@@ -77,6 +77,7 @@ export type DocumentFilters = {
   status?: string;
   version?: string;
   updatedBy?: string;
+  createdBy?: string;
   from?: string;
   to?: string;
   sort?: "updated" | "party" | "number" | "version";
@@ -109,6 +110,7 @@ export async function listDocuments(filters: DocumentFilters = {}) {
   if (filters.status) query = query.eq("status", filters.status as DocStatus);
   if (filters.version) query = query.eq("current_version", Number(filters.version));
   if (filters.updatedBy) query = query.ilike("updated_by_name", `%${filters.updatedBy}%`);
+  if (filters.createdBy) query = query.eq("created_by", filters.createdBy);
   if (filters.from) query = query.gte("updated_at", filters.from);
   if (filters.to) query = query.lte("updated_at", filters.to);
 
