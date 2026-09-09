@@ -104,6 +104,13 @@ function DocumentsPage() {
   const [folderId, setFolderId] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "folders">("folders");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+
+  const toggleFolderExpand = (id: string) => {
+    setExpandedFolders(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
   const [page, setPage] = useState(1);
 
   const handlePreview = (fileId: string, docId: string) => {
@@ -362,7 +369,7 @@ function DocumentsPage() {
                     {/* Folders List */}
                     <div className="p-4 space-y-3 bg-slate-50/50">
                       {folderEntries.map(folder => {
-                        const isExpanded = expandedFolders[folder.id] !== false;
+                        const isExpanded = !!expandedFolders[folder.id];
                         return (
                           <div key={folder.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm">
                             {/* Folder Title Bar */}
@@ -371,7 +378,7 @@ function DocumentsPage() {
                               onClick={() => toggleFolderExpand(folder.id)}
                             >
                               <div className="flex items-center gap-2.5">
-                                <Folder className="w-4 h-4 text-amber-500 fill-amber-100" />
+                                {isExpanded ? <FolderOpen className="w-4 h-4 text-amber-500 fill-amber-100" /> : <Folder className="w-4 h-4 text-amber-500 fill-amber-100" />}
                                 <span className="font-semibold text-slate-800 text-sm">{folder.name}</span>
                                 <Badge variant="outline" className="text-[11px] font-normal text-slate-600 bg-white">
                                   {folder.docs.length} {folder.docs.length === 1 ? 'document' : 'documents'}
