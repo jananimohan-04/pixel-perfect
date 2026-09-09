@@ -7,6 +7,15 @@ import { supabase } from "@/integrations/supabase/client";
  * Credentials are NOT exposed to the client.
  */
 
+export interface DriveFolder {
+  id: string;
+  party_id: string;
+  google_folder_id: string;
+  name: string;
+  parent_folder_id: string | null;
+  created_at: string;
+}
+
 export interface GoogleDriveConfig {
   isConnected: boolean;
   error?: string;
@@ -41,13 +50,16 @@ export class GoogleDriveService {
    */
   static async uploadFile(
     file: File, 
-    metadata: { partyId: string; documentNumber: string; version: number }
+    metadata: { partyId: string; documentNumber: string; version: number; targetFolderId?: string }
   ): Promise<GoogleDriveUploadResult> {
     const form = new FormData();
     form.append('file', file);
     form.append('partyId', metadata.partyId);
     form.append('documentNumber', metadata.documentNumber);
     form.append('version', metadata.version.toString());
+    if (metadata.targetFolderId) {
+      form.append('targetFolderId', metadata.targetFolderId);
+    }
 
     // Call Edge Function
     const { data, error } = await supabase.functions.invoke('drive-api/upload', {
@@ -119,5 +131,25 @@ export class GoogleDriveService {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Lists folders for a company/party.
+   */
+  static async listFolders(partyId: string): Promise<DriveFolder[]> {
+    const { data, error } = await supabase.functions.invoke(`drive-api/list-folders?partyId=${partyId}`, { method: 'GET' });
+    if (error) throw error;
+    return data.folders || [];
+  }
+
+  /**
+   * Creates a new folder inside Google Drive and stores the metadata in the database.
+   */
+  static async createFolder(partyId: string, name: string, parentFolderId?: string): Promise<DriveFolder> {
+    const { data, error } = await supabase.functions.invoke('drive-api/create-folder', {
+      body: { partyId, name, parentFolderId }
+    });
+    if (error) throw new Error(error.message || "Failed to create folder");
+    return data.folder;
   }
 }

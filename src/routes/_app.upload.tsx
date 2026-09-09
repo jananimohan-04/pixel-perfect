@@ -34,6 +34,7 @@ function UploadWizardPage() {
 
   // Form State
   const [partyId, setPartyId] = useState<string>("");
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("root");
   const [partId, setPartId] = useState<string>("");
   const [isNewPart, setIsNewPart] = useState(false);
   const [newPartNumber, setNewPartNumber] = useState("");
@@ -66,6 +67,12 @@ function UploadWizardPage() {
     queryKey: ["parts-list", partyId],
     queryFn: () => listParts(partyId),
     enabled: !!partyId && !isNewPart,
+  });
+
+  const { data: partyFolders } = useQuery({
+    queryKey: ["drive_folders", partyId],
+    queryFn: () => GoogleDriveService.listFolders(partyId),
+    enabled: !!partyId && partyId !== "internal",
   });
 
   const handleNext = async () => {
@@ -184,7 +191,8 @@ function UploadWizardPage() {
         driveUpload = await GoogleDriveService.uploadFile(file, {
           partyId,
           documentNumber: docNumber,
-          version: nextVersion
+          version: nextVersion,
+          targetFolderId: selectedFolderId === 'root' ? undefined : selectedFolderId
         });
       } catch (err: any) {
         throw new Error(`Google Drive Upload Failed: ${err.message}. Database was not updated.`);
@@ -372,21 +380,45 @@ function UploadWizardPage() {
         </CardHeader>
         <CardContent>
           
-          {/* STEP 0: Party */}
+          {/* STEP 0: Party & Target Folder */}
           {currentStep === 0 && (
-            <div className="space-y-4">
-              <Label>Select Party</Label>
-              <Select value={partyId} onValueChange={setPartyId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a party..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="internal">Internal / CNC Vault</SelectItem>
-                  {parties?.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label>Select Party (Company)</Label>
+                <Select value={partyId} onValueChange={(val) => { setPartyId(val); setSelectedFolderId("root"); }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a party..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="internal">Internal / CNC Vault</SelectItem>
+                    {parties?.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.code})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {partyId && partyId !== "internal" && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <Label>Select Target Google Drive Folder</Label>
+                  <Select value={selectedFolderId} onValueChange={setSelectedFolderId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select target folder..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="root">?? CNC Vault (Root Folder)</SelectItem>
+                      {partyFolders?.map(f => (
+                        <SelectItem key={f.id} value={f.google_folder_id}>
+                          ?? {f.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    The document will be stored inside this folder in the company's Google Drive.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

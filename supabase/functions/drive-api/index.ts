@@ -172,6 +172,74 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'list-folders' && req.method === 'GET') {
+      const partyId = url.searchParams.get('partyId');
+      if (!partyId) throw new Error('partyId required');
+      
+      const { data, error } = await supabaseClient
+        .from('cncvault_drive_folders')
+        .select('*')
+        .eq('party_id', partyId)
+        .order('created_at', { ascending: true });
+        
+      if (error) throw error;
+      return new Response(JSON.stringify({ folders: data || [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (action === 'create-folder' && req.method === 'POST') {
+      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'manage_settings' });
+      if (!rbacCheck) throw new Error('Permission denied');
+
+      const body = await req.json();
+      const { partyId, name, parentFolderId } = body;
+      if (!partyId || !name) throw new Error('partyId and name required');
+
+      const { data: partyData } = await supabaseClient
+        .from('cncvault_parties')
+        .select('drive_refresh_token, drive_folder_id')
+        .eq('id', partyId)
+        .single();
+
+      if (!partyData?.drive_refresh_token) throw new Error('This party has not connected a Google Drive.');
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      let googleParentId = partyData.drive_folder_id;
+
+      if (parentFolderId) {
+        const { data: parentFolder } = await supabaseClient
+          .from('cncvault_drive_folders')
+          .select('google_folder_id')
+          .eq('id', parentFolderId)
+          .single();
+
+        if (parentFolder?.google_folder_id) {
+          googleParentId = parentFolder.google_folder_id;
+        }
+      }
+
+      const googleFolderId = await createFolder(name, googleParentId, token);
+
+      const { data: newFolderRecord, error: dbError } = await supabaseClient
+        .from('cncvault_drive_folders')
+        .insert({
+          party_id: partyId,
+          google_folder_id: googleFolderId,
+          name,
+          parent_folder_id: parentFolderId || null
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      return new Response(JSON.stringify({ folder: newFolderRecord }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action === 'upload' && req.method === 'POST') {
       const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
       if (!rbacCheck) throw new Error('Permission denied');
@@ -181,6 +249,7 @@ serve(async (req) => {
       const partyId = formData.get('partyId') as string;
       const documentNumber = formData.get('documentNumber') as string;
       const version = formData.get('version') as string;
+      const targetFolderId = (formData.get('targetFolderId') as string) || '';
 
       if (!file || !partyId || !documentNumber || !version) {
         throw new Error('Missing fields');
@@ -195,8 +264,12 @@ serve(async (req) => {
       const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
       
       // Create hierarchy
-      let docFolderId = await findFolder(documentNumber, partyData.drive_folder_id, token);
-      if (!docFolderId) docFolderId = await createFolder(documentNumber, partyData.drive_folder_id, token);
+      let baseFolderId = partyData.drive_folder_id;
+      if (targetFolderId) {
+        baseFolderId = targetFolderId;
+      }
+      let docFolderId = await findFolder(documentNumber, baseFolderId, token);
+      if (!docFolderId) docFolderId = await createFolder(documentNumber, baseFolderId, token);
       
       let versionFolderId = await findFolder(`V${version}`, docFolderId, token);
       if (!versionFolderId) versionFolderId = await createFolder(`V${version}`, docFolderId, token);
