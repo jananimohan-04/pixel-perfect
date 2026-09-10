@@ -13,8 +13,8 @@ export const Route = createFileRoute("/_app/dashboard")({
 });
 
 function DashboardPage() {
-  const { isSuperAdmin, isCompanyAdmin, isNormalUser, profile } = usePermissions();
-  const effectivePartyId = undefined;
+  const { isSuperAdmin, isCompanyAdmin, isNormalUser, userPartyId, profile } = usePermissions();
+  const effectivePartyId = userPartyId || undefined;
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["dashboard-stats", effectivePartyId, isNormalUser, profile?.full_name],

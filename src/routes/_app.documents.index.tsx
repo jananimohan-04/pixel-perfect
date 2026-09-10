@@ -25,12 +25,6 @@ export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
 });
 
-
-  const toggleFolderExpand = (id: string) => {
-    setExpandedFolders(prev => ({ ...prev, [id]: prev[id] === undefined ? false : !prev[id] }));
-  };
-
-
 function DocumentRow({ doc, can, navigate }: { doc: any; can: any; navigate: any }) {
   return (
     <TableRow key={doc.id} className="hover:bg-slate-50">
@@ -145,7 +139,8 @@ function DocumentsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const effectivePartyId = partyId !== "all" ? partyId : undefined;
+  // Scope strictly to user's company if user has an assigned company
+  const effectivePartyId = userPartyId || (partyId !== "all" ? partyId : undefined);
 
   const { data: parties } = useQuery({
     queryKey: ["parties-list"],
@@ -242,32 +237,37 @@ function DocumentsPage() {
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Party" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Parties</SelectItem>
-              {parties?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {partyId !== "all" && (
-            <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
+          {userPartyId ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-md text-xs font-semibold text-indigo-700 w-full truncate">
+              <Building className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span className="truncate">{parties?.find(p => p.id === userPartyId)?.name || "My Company"}</span>
+            </div>
+          ) : (
+            <Select value={partyId} onValueChange={(v) => { setPartyId(v); setFolderId("all"); setPage(1); }}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Drive Folder" />
+                <SelectValue placeholder="Party" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Folders</SelectItem>
-                <SelectItem value="root">CNC Vault (Root)</SelectItem>
-                {partyFolders?.map((f) => (
-                  <SelectItem key={f.id} value={f.google_folder_id}>{f.name}</SelectItem>
+                <SelectItem value="all">All Parties</SelectItem>
+                {parties?.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
+
+          <Select value={folderId} onValueChange={(v) => { setFolderId(v); setPage(1); }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Drive Folder" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Folders</SelectItem>
+              <SelectItem value="root">CNC Vault (Root)</SelectItem>
+              {partyFolders?.map((f) => (
+                <SelectItem key={f.id} value={f.google_folder_id}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
             <SelectTrigger className="w-full">
@@ -305,28 +305,26 @@ function DocumentsPage() {
         <div className="space-y-6">
           {isLoading ? (
             <div className="bg-white p-8 rounded-lg border text-center text-slate-500">Loading Google Drive structure...</div>
-          ) : !data || filteredRows.length === 0 ? (
-            <div className="bg-white p-8 rounded-lg border text-center text-slate-500">
-              <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p>No documents found matching your criteria.</p>
-            </div>
           ) : (
             (() => {
-              // Group documents by Party first
-              const partyMap: Record<string, { partyInfo: any; docs: any[] }> = {};
-              
-              filteredRows.forEach(doc => {
-                const pId = doc.party_id || 'internal';
-                if (!partyMap[pId]) {
-                  partyMap[pId] = {
-                    partyInfo: doc.parties || { id: 'internal', name: 'Internal / CNC Vault', drive_email: null },
-                    docs: []
-                  };
-                }
-                partyMap[pId].docs.push(doc);
-              });
+              // Determine company/parties to display:
+              // If effectivePartyId is set (company user), ONLY show that company!
+              const targetParties = effectivePartyId
+                ? (parties?.filter(p => p.id === effectivePartyId) || [])
+                : (parties || []);
 
-              return Object.values(partyMap).map(({ partyInfo, docs: partyDocs }) => {
+              if (targetParties.length === 0) {
+                return (
+                  <div className="bg-white p-8 rounded-lg border text-center text-slate-500">
+                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p>No documents found matching your criteria.</p>
+                  </div>
+                );
+              }
+
+              return targetParties.map((partyInfo) => {
+                const partyDocs = filteredRows.filter(doc => doc.party_id === partyInfo.id);
+
                 // Group party documents by Folder ID
                 const folderMap: Record<string, any[]> = {};
                 partyDocs.forEach(doc => {
@@ -335,13 +333,19 @@ function DocumentsPage() {
                   folderMap[fKey].push(doc);
                 });
 
-                const folderEntries: { id: string; name: string; docs: any[] }[] = [
-                  { id: 'root', name: 'CNC Vault (Root Folder)', docs: folderMap['root'] || [] }
-                ];
+                const folderEntries: { id: string; name: string; docs: any[] }[] = [];
 
-                // Add custom folders if available
+                if (folderId === "all" || folderId === "root") {
+                  folderEntries.push({
+                    id: 'root',
+                    name: 'CNC Vault (Root Folder)',
+                    docs: folderMap['root'] || []
+                  });
+                }
+
+                // Add custom folders from Google Drive
                 partyFolders?.forEach(f => {
-                  if (f.party_id === partyInfo.id || partyId !== 'all') {
+                  if (folderId === "all" || folderId === f.google_folder_id) {
                     folderEntries.push({
                       id: f.google_folder_id,
                       name: f.name,
@@ -353,11 +357,13 @@ function DocumentsPage() {
                 // Add any remaining folder IDs with documents
                 Object.keys(folderMap).forEach(k => {
                   if (k !== 'root' && !folderEntries.some(e => e.id === k)) {
-                    folderEntries.push({
-                      id: k,
-                      name: `Folder (${k.substring(0, 8)}...)`,
-                      docs: folderMap[k]
-                    });
+                    if (folderId === "all" || folderId === k) {
+                      folderEntries.push({
+                        id: k,
+                        name: `Folder (${k.substring(0, 8)}...)`,
+                        docs: folderMap[k]
+                      });
+                    }
                   }
                 });
 
@@ -368,7 +374,7 @@ function DocumentsPage() {
                       <div className="flex items-center gap-2.5">
                         <Building className="w-5 h-5 text-indigo-600" />
                         <h3 className="font-bold text-slate-900 text-base">{partyInfo.name}</h3>
-                        {partyInfo.drive_email && (
+                        {(partyInfo.drive_email || partyInfo.drive_refresh_token) && (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs font-normal">
                             ✓ Google Drive Connected
                           </Badge>
