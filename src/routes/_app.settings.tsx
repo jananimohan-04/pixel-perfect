@@ -186,7 +186,7 @@ function SettingsPage() {
   const { data: parties, isLoading: partiesLoading, refetch: refetchParties } = useQuery({
     queryKey: ['settings_parties'],
     queryFn: async () => {
-      const { data, error } = await supabase.from("cncvault_parties").select("id, name, drive_email, drive_folder_id, drive_refresh_token").order("name");
+      const { data, error } = await supabase.from("cncvault_parties").select("id, name, drive_email, drive_folder_id, drive_refresh_token, drives:cncvault_party_drives(id, drive_email, drive_folder_id, created_at)").order("name");
       if (error) throw error;
       return data;
     },
@@ -359,36 +359,45 @@ function SettingsPage() {
                     </div>
                   ) : (
                     <div className="space-y-3 mt-4">
-                      {parties?.filter(party => isSuperAdmin || party.id === userPartyId).map(party => (
+                      {parties?.filter(party => isSuperAdmin || party.id === userPartyId).map(party => {
+                        const drives = party.drives && party.drives.length > 0 
+                          ? party.drives 
+                          : (party.drive_refresh_token ? [{ id: 'legacy', drive_email: party.drive_email }] : []);
+
+                        return (
                         <div key={party.id} className="p-4 bg-slate-50 border rounded-lg hover:border-indigo-200 transition-colors">
-<div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="bg-white p-2 rounded border shadow-sm">
-                              <Building className="w-5 h-5 text-indigo-500" />
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-white p-2 rounded border shadow-sm">
+                                <Building className="w-5 h-5 text-indigo-500" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-slate-800">{party.name}</h4>
+                                {drives.length > 0 ? (
+                                  <div className="mt-1 space-y-1">
+                                    {drives.map((d: any, idx: number) => (
+                                      <p key={d.id} className="text-sm text-green-600 flex items-center gap-1 font-medium">
+                                        <Check className="w-4 h-4" /> Drive {idx + 1}: {d.drive_email || 'Connected'}
+                                      </p>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-slate-500 mt-1">Not Connected</p>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="font-semibold text-slate-800">{party.name}</h4>
-                              {(party.drive_refresh_token || party.drive_email) ? (
-                                <p className="text-sm text-green-600 flex items-center gap-1 font-medium mt-1">
-                                  <Check className="w-4 h-4" /> Connected {party.drive_email ? `to ${party.drive_email}` : '(Drive Active)'}
-                                </p>
-                              ) : (
-                                <p className="text-sm text-slate-500 mt-1">Not Connected</p>
-                              )}
-                            </div>
+                            <Button 
+                              variant={drives.length > 0 ? "outline" : "default"}
+                              className={drives.length > 0 ? "text-slate-600" : "bg-indigo-600 hover:bg-indigo-700"}
+                              onClick={() => handleConnectDrive(party.id)}
+                            >
+                              <Cloud className="w-4 h-4 mr-2" /> 
+                              {drives.length > 0 ? "Add Another Drive" : "Connect Drive"}
+                            </Button>
                           </div>
-                          <Button 
-                            variant={(party.drive_refresh_token || party.drive_email) ? "outline" : "default"}
-                            className={(party.drive_refresh_token || party.drive_email) ? "text-slate-600" : "bg-indigo-600 hover:bg-indigo-700"}
-                            onClick={() => handleConnectDrive(party.id)}
-                          >
-                            <Cloud className="w-4 h-4 mr-2" /> 
-                            {(party.drive_refresh_token || party.drive_email) ? "Reconnect Drive" : "Connect Drive"}
-                          </Button>
+                          <PartyDriveFolderSection party={party} />
                         </div>
-                        <PartyDriveFolderSection party={party} />
-                        </div>
-                      ))}
+                      )})}
                       
                       {parties?.length === 0 && (
                         <div className="text-center p-6 text-slate-500 border border-dashed rounded-lg">

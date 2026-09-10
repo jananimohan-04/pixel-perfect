@@ -144,6 +144,13 @@ serve(async (req) => {
         drive_email: userInfo.email || ''
       }).eq('id', partyId);
 
+      await supabaseClient.from('cncvault_party_drives').insert({
+        party_id: partyId,
+        drive_refresh_token: refreshToken,
+        drive_folder_id: rootFolderId,
+        drive_email: userInfo.email || ''
+      });
+
       return new Response('<html><body><h1>Drive Connected Successfully!</h1><p>You can close this window now.</p><script>setTimeout(() => window.close(), 2000);</script></body></html>', {
         headers: { 'Content-Type': 'text/html' }
       });
@@ -403,6 +410,7 @@ serve(async (req) => {
     throw new Error('Unknown route');
     
   } catch (error: any) {
+    console.error('Edge function error:', error.message, error.stack);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
