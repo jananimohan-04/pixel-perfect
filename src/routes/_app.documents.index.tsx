@@ -223,9 +223,9 @@ function DocumentsPage() {
           </div>
 
           {can("upload") && (
-            <Button onClick={() => navigate({ to: "/upload" })} className="bg-indigo-600 hover:bg-indigo-700">
+            <Button onClick={() => navigate({ to: "/parts" })} className="bg-indigo-600 hover:bg-indigo-700">
               <Plus className="w-4 h-4 mr-2" />
-              Upload Document
+              Upload Document / Drawing
             </Button>
           )}
         </div>

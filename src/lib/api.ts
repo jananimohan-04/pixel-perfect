@@ -44,13 +44,18 @@ export async function updateParty(id: string, input: Tables["cncvault_parties"][
 
 /* ------------------------------- parts ------------------------------- */
 
+export type PartWithDetails = Part & {
+  parties: Pick<Party, "id" | "name" | "code"> | null;
+  documents?: (DocumentRow & { versions?: DocumentVersion[] })[];
+};
+
 export async function listParts(partyId?: string) {
   let query = supabase
     .from("cncvault_parts")
-    .select("*, parties:cncvault_parties(id, name, code)")
+    .select("*, parties:cncvault_parties(id, name, code), documents:cncvault_documents(*, versions:cncvault_document_versions(*))")
     .order("updated_at", { ascending: false });
   if (partyId) query = query.eq("party_id", partyId);
-  return unwrap(await query) as (Part & { parties: Pick<Party, "id" | "name" | "code"> | null })[];
+  return unwrap(await query) as PartWithDetails[];
 }
 
 export async function getPart(id: string) {

@@ -53,7 +53,6 @@ function AppShell() {
     { label: "Documents", icon: FileText, path: "/documents", show: can("view") },
     { label: "Parties", icon: Building2, path: "/parties", show: can("manage_parties") || can("view") },
     { label: "Parts & Drawings", icon: Box, path: "/parts", show: can("manage_documents") || can("view") },
-    { label: "Upload Document", icon: Upload, path: "/upload", show: can("upload") },
     { label: "Users", icon: Users, path: "/users", show: can("manage_users") },
     { label: "Roles & Permissions", icon: Shield, path: "/roles", show: can("manage_roles") },
     { label: "Audit Logs", icon: Activity, path: "/audit-logs", show: can("view_audit") },
