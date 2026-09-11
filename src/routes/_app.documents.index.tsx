@@ -17,7 +17,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
+import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink } from "lucide-react";
 import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
 
@@ -25,7 +25,8 @@ export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
 });
 
-function DocumentRow({ doc, can, navigate }: { doc: any; can: any; navigate: any }) {
+function DocumentRow({ doc, can, navigate, onPreview, onDownload }: { doc: any; can: any; navigate: any; onPreview?: any; onDownload?: any }) {
+  const latestVer = doc.versions?.[0];
   return (
     <TableRow key={doc.id} className="hover:bg-slate-50">
       <TableCell>
@@ -65,14 +66,19 @@ function DocumentRow({ doc, can, navigate }: { doc: any; can: any; navigate: any
             <DropdownMenuItem onClick={() => navigate({ to: `/documents/${doc.id}` })}>
               <History className="mr-2 h-4 w-4" /> Version History
             </DropdownMenuItem>
-            {can("view") && (
-              <DropdownMenuItem>
+            {can("view") && latestVer?.google_drive_file_id && (
+              <DropdownMenuItem onClick={() => onPreview?.(latestVer.google_drive_file_id, doc.id)}>
                 <Eye className="mr-2 h-4 w-4" /> Preview
               </DropdownMenuItem>
             )}
-            {can("download") && (
-              <DropdownMenuItem>
+            {can("download") && latestVer?.google_drive_file_id && (
+              <DropdownMenuItem onClick={() => onDownload?.(latestVer.google_drive_file_id, doc.id, latestVer.file_name)}>
                 <Download className="mr-2 h-4 w-4" /> Download
+              </DropdownMenuItem>
+            )}
+            {latestVer?.google_drive_file_id && (
+              <DropdownMenuItem onClick={() => window.open(`https://drive.google.com/file/d/${latestVer.google_drive_file_id}/view`, '_blank')}>
+                <ExternalLink className="mr-2 h-4 w-4 text-emerald-600" /> Open in Google Drive
               </DropdownMenuItem>
             )}
             {can("manage_access") && (
@@ -466,6 +472,11 @@ function DocumentsPage() {
                                                     <Download className="w-3 h-3 mr-1" /> Download
                                                   </Button>
                                                 )}
+                                                {ver.google_drive_file_id && (
+                                                  <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => window.open(`https://drive.google.com/file/d/${ver.google_drive_file_id}/view`, '_blank')}>
+                                                    <ExternalLink className="w-3 h-3 mr-1" /> Open in Drive
+                                                  </Button>
+                                                )}
                                               </div>
                                             </div>
                                           ))}
@@ -517,7 +528,14 @@ function DocumentsPage() {
                 </TableRow>
               ) : (
                 filteredRows.map((doc) => (
-                  <DocumentRow key={doc.id} doc={doc} can={can} navigate={navigate} />
+                  <DocumentRow 
+                    key={doc.id} 
+                    doc={doc} 
+                    can={can} 
+                    navigate={navigate} 
+                    onPreview={handlePreview} 
+                    onDownload={handleDownload} 
+                  />
                 ))
               )}
             </TableBody>

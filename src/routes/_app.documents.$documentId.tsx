@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/rbac";
-import { Download, Upload, Eye, Shield, FileText, History, Info, ChevronLeft } from "lucide-react";
+import { Download, Upload, Eye, Shield, FileText, History, Info, ChevronLeft, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -97,6 +97,16 @@ function DocumentDetailPage() {
             }}>
               <Download className="w-4 h-4 mr-2" />
               Download
+            </Button>
+          )}
+          {versions && versions.length > 0 && versions[0].google_drive_file_id && (
+            <Button 
+              variant="outline" 
+              className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+              onClick={() => window.open(`https://drive.google.com/file/d/${versions[0].google_drive_file_id}/view`, '_blank')}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Open in Drive
             </Button>
           )}
           {can("upload") && (
@@ -254,6 +264,17 @@ function DocumentDetailPage() {
                             {can("download") && (
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500" title="Download" onClick={() => GoogleDriveService.downloadFile(v.google_drive_file_id, documentId, v.file_name)}>
                                 <Download className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {v.google_drive_file_id && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" 
+                                title="Open in Google Drive" 
+                                onClick={() => window.open(`https://drive.google.com/file/d/${v.google_drive_file_id}/view`, '_blank')}
+                              >
+                                <ExternalLink className="w-4 h-4" />
                               </Button>
                             )}
                           </div>

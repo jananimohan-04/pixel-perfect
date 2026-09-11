@@ -96,7 +96,12 @@ export class GoogleDriveService {
     });
 
     if (!res.ok) {
-      throw new Error("Failed to load document preview");
+      let errMessage = "Failed to load document preview";
+      try {
+        const errData = await res.json();
+        if (errData.error) errMessage = errData.error;
+      } catch (e) {}
+      throw new Error(errMessage);
     }
 
     const blob = await res.blob();

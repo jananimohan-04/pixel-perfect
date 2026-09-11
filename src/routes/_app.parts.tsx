@@ -45,7 +45,8 @@ import {
   Paperclip, 
   Layers, 
   Loader2,
-  FileCheck
+  FileCheck,
+  ExternalLink
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -1171,6 +1172,17 @@ function PartsPage() {
                                             onClick={() => handleDownload(latestVer.google_drive_file_id, doc.id, latestVer.file_name)}
                                           >
                                             <Download className="w-3.5 h-3.5 mr-1" /> Download
+                                          </Button>
+                                        )}
+
+                                        {latestVer?.google_drive_file_id && (
+                                          <Button 
+                                            size="sm" 
+                                            variant="ghost" 
+                                            className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2"
+                                            onClick={() => window.open(`https://drive.google.com/file/d/${latestVer.google_drive_file_id}/view`, '_blank')}
+                                          >
+                                            <ExternalLink className="w-3.5 h-3.5 mr-1" /> Open in Drive
                                           </Button>
                                         )}
 
