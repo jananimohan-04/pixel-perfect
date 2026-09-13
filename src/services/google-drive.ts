@@ -157,4 +157,15 @@ export class GoogleDriveService {
     if (error) throw new Error(error.message || "Failed to create folder");
     return data.folder;
   }
+
+  /**
+   * Syncs document versions from Google Drive
+   */
+  static async syncVersions(partyId: string): Promise<{ synced: number }> {
+    const { data, error } = await supabase.functions.invoke('drive-api/sync-versions', {
+      body: { partyId }
+    });
+    if (error) throw new Error(error.message || "Failed to sync versions");
+    return data;
+  }
 }

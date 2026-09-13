@@ -377,6 +377,99 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'sync-versions' && req.method === 'POST') {
+      const body = await req.json();
+      const { partyId } = body;
+      if (!partyId) throw new Error('partyId required');
+
+      const { data: profile } = await supabaseClient
+        .from('cncvault_profiles')
+        .select('party_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const isSuperAdmin = !profile?.party_id;
+      const isSameParty = profile?.party_id === partyId;
+
+      if (!isSuperAdmin && !isSameParty) {
+        throw new Error('Permission denied');
+      }
+
+      const { data: partyData } = await supabaseClient.from('cncvault_parties')
+        .select('drive_refresh_token').eq('id', partyId).single();
+      
+      if (!partyData?.drive_refresh_token) {
+        return new Response(JSON.stringify({ synced: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      const { data: documents } = await supabaseClient
+        .from('cncvault_documents')
+        .select('id, current_version, document_number, document_name')
+        .eq('party_id', partyId);
+
+      if (!documents || documents.length === 0) {
+        return new Response(JSON.stringify({ synced: 0 }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+
+      let syncedCount = 0;
+
+      for (const doc of documents) {
+        const { data: latestVersion } = await supabaseClient
+          .from('cncvault_document_versions')
+          .select('*')
+          .eq('document_id', doc.id)
+          .eq('version_number', doc.current_version)
+          .single();
+
+        if (latestVersion && latestVersion.google_drive_file_id) {
+          try {
+            const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files/${latestVersion.google_drive_file_id}?fields=modifiedTime,size`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (driveRes.ok) {
+              const driveData = await driveRes.json();
+              if (driveData.modifiedTime) {
+                const driveModifiedTime = new Date(driveData.modifiedTime).getTime();
+                const dbUploadedTime = new Date(latestVersion.uploaded_at).getTime();
+                
+                if (driveModifiedTime > dbUploadedTime + 5000) {
+                  const newVersionNumber = doc.current_version + 1;
+                  
+                  await supabaseClient.from('cncvault_document_versions').insert({
+                    document_id: doc.id,
+                    version_number: newVersionNumber,
+                    google_drive_file_id: latestVersion.google_drive_file_id,
+                    drive_file_id: latestVersion.drive_file_id,
+                    drive_folder_id: latestVersion.drive_folder_id,
+                    drive_url: latestVersion.drive_url,
+                    file_name: latestVersion.file_name,
+                    file_size: driveData.size ? parseInt(driveData.size, 10) : latestVersion.file_size,
+                    file_type: latestVersion.file_type,
+                    uploaded_by: user.id,
+                    revision_notes: "Auto-synced from Google Drive edits",
+                    status: latestVersion.status,
+                    uploaded_at: new Date(driveModifiedTime).toISOString()
+                  });
+
+                  await supabaseClient.from('cncvault_documents').update({
+                    current_version: newVersionNumber
+                  }).eq('id', doc.id);
+
+                  syncedCount++;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error syncing document', doc.id, e);
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ synced: syncedCount }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if ((action === 'download' || action === 'view') && req.method === 'GET') {
       const driveFileId = url.searchParams.get('fileId');
       const documentId = url.searchParams.get('documentId');

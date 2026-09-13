@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { listDocuments, listParties } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -17,9 +17,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink } from "lucide-react";
+import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink, RefreshCw } from "lucide-react";
 import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
@@ -136,6 +137,57 @@ function DocumentsPage() {
       });
   };
 
+  const queryClient = useQueryClient();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncDrive = async () => {
+    const targetPartyId = userPartyId || (partyId !== "all" ? partyId : undefined);
+    
+    if (!targetPartyId) {
+      toast.error("Please select a specific company to sync");
+      return;
+    }
+    
+    setIsSyncing(true);
+    toast.loading("Syncing Drive changes...", { id: "sync" });
+    try {
+      const result = await GoogleDriveService.syncVersions(targetPartyId);
+      toast.dismiss("sync");
+      toast.success(`Synced successfully. Found ${result.synced} updated file(s).`);
+      if (result.synced > 0) {
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        queryClient.invalidateQueries({ queryKey: ["parts"] });
+      }
+    } catch (e: any) {
+      toast.dismiss("sync");
+      toast.error(e.message || "Failed to sync Drive");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    const targetPartyId = userPartyId || (partyId !== "all" ? partyId : undefined);
+    if (!targetPartyId) return;
+
+    const lastSyncStr = sessionStorage.getItem(`last_drive_sync_${targetPartyId}`);
+    const lastSync = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+    
+    // Auto-sync every 60 seconds when on this page
+    if (Date.now() - lastSync > 60000) {
+      sessionStorage.setItem(`last_drive_sync_${targetPartyId}`, Date.now().toString());
+      GoogleDriveService.syncVersions(targetPartyId).then(res => {
+        if (res.synced > 0) {
+          toast.success(`Auto-synced: Found ${res.synced} updated file(s) from Drive.`);
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          queryClient.invalidateQueries({ queryKey: ["parts"] });
+        }
+      }).catch(() => {
+        // Silent fail for auto-sync
+      });
+    }
+  }, [userPartyId, partyId, queryClient]);
+
   const pageSize = 12;
 
   // Debounce search
@@ -224,10 +276,21 @@ function DocumentsPage() {
           </div>
 
           {can("upload") && (
-            <Button onClick={() => navigate({ to: "/parts" })} className="bg-indigo-600 hover:bg-indigo-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Upload Document / Drawing
-            </Button>
+            <>
+              <Button 
+                onClick={handleSyncDrive} 
+                disabled={isSyncing} 
+                variant="outline" 
+                className="bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                Sync Drive
+              </Button>
+              <Button onClick={() => navigate({ to: "/parts" })} className="bg-indigo-600 hover:bg-indigo-700">
+                <Plus className="w-4 h-4 mr-2" />
+                Upload Document
+              </Button>
+            </>
           )}
         </div>
       </div>

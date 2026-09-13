@@ -832,12 +832,37 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
 /* -------------------------------------------------------------------------- */
 
 function PartsPage() {
-  const { can, isSuperAdmin, userPartyId } = usePermissions();
+  const { user } = useAuth();
+  const { can, isSuperAdmin, isCompanyAdmin, isNormalUser, userPartyId, profile } = usePermissions();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const [partyId, setPartyId] = useState<string>("all");
+  const [docType, setDocType] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+
+  // Auto-sync Google Drive
+  useEffect(() => {
+    const targetPartyId = userPartyId || (partyId !== "all" ? partyId : undefined);
+    if (!targetPartyId) return;
+
+    const lastSyncStr = sessionStorage.getItem(`last_drive_sync_${targetPartyId}`);
+    const lastSync = lastSyncStr ? parseInt(lastSyncStr, 10) : 0;
+    
+    if (Date.now() - lastSync > 60000) {
+      sessionStorage.setItem(`last_drive_sync_${targetPartyId}`, Date.now().toString());
+      GoogleDriveService.syncVersions(targetPartyId).then(res => {
+        if (res.synced > 0) {
+          toast.success(`Auto-synced: Found ${res.synced} updated file(s) from Drive.`);
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+          queryClient.invalidateQueries({ queryKey: ["parts"] });
+        }
+      }).catch(() => {});
+    }
+  }, [userPartyId, partyId, queryClient]);
+
   const [expandedParts, setExpandedParts] = useState<Record<string, boolean>>({});
 
   // Dialog state for uploading directly to an existing part
