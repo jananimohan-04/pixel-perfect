@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,7 @@ import {
   createPart, 
   listParts, 
   listParties, 
+  listDocuments,
   createDocument, 
   updateDocument, 
   createVersion, 
@@ -18,7 +19,7 @@ import {
   PartWithDetails 
 } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ function UploadToPartDialog({
   onSuccess: () => void;
 }) {
   const { profile, user } = useAuth();
+  const { userPartyId } = usePermissions();
   const userId = user?.id;
   const userName = profile?.full_name || user?.email || "Admin";
 
@@ -93,12 +95,12 @@ function UploadToPartDialog({
   const [uploadProgress, setUploadProgress] = useState(0);
 
   // Sync state with part when dialog opens
-  const targetPartyId = part?.party_id || "internal";
+  const effectiveDocPartyId = part?.party_id || userPartyId || "internal";
 
   const { data: partyFolders } = useQuery({
-    queryKey: ["drive_folders", targetPartyId],
-    queryFn: () => GoogleDriveService.listFolders(targetPartyId),
-    enabled: open && !!part && targetPartyId !== "internal",
+    queryKey: ["drive_folders", effectiveDocPartyId],
+    queryFn: () => GoogleDriveService.listFolders(effectiveDocPartyId),
+    enabled: open && !!part && effectiveDocPartyId !== "internal",
   });
 
   const handleFileChange = (selectedFile: File | null) => {
@@ -142,7 +144,7 @@ function UploadToPartDialog({
 
       // 2. Upload file to Google Drive
       const driveUpload = await GoogleDriveService.uploadFile(file, {
-        partyId: part.party_id || "internal",
+        partyId: part.party_id || userPartyId || "internal",
         documentNumber: docNumber.trim(),
         version: nextVersion,
         targetFolderId: folderId === "root" ? undefined : folderId,
@@ -154,6 +156,8 @@ function UploadToPartDialog({
       let finalDocId = existingDoc?.id;
       if (existingDoc) {
         await updateDocument(existingDoc.id, {
+          part_id: part.id,
+          part_number: part.part_number,
           document_name: docName.trim(),
           drawing_number: drawingNumber.trim() || null,
           document_type: docType,
@@ -164,8 +168,9 @@ function UploadToPartDialog({
           drive_folder_id: folderId === "root" ? null : folderId,
         });
       } else {
+        const targetParty = part.party_id || userPartyId || undefined;
         const newDoc = await createDocument({
-          party_id: part.party_id || undefined,
+          party_id: targetParty,
           part_id: part.id,
           document_number: docNumber.trim(),
           document_name: docName.trim(),
@@ -430,7 +435,9 @@ function UploadToPartDialog({
 /* -------------------------------------------------------------------------- */
 
 function AddPartDialog({ onAdded }: { onAdded: () => void }) {
+  const queryClient = useQueryClient();
   const { profile, user } = useAuth();
+  const { userPartyId } = usePermissions();
   const userId = user?.id;
   const userName = profile?.full_name || user?.email || "Admin";
 
@@ -442,7 +449,7 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
   const [partNumber, setPartNumber] = useState("");
   const [partName, setPartName] = useState("");
   const [drawingNumber, setDrawingNumber] = useState("");
-  const [partyId, setPartyId] = useState("");
+  const [partyId, setPartyId] = useState(userPartyId || "");
 
   // Integrated Document Upload options
   const [attachDocument, setAttachDocument] = useState(false);
@@ -454,15 +461,17 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
   const [status, setStatus] = useState<string>("Draft");
   const [revisionNotes, setRevisionNotes] = useState("");
 
+  const effectivePartyForFolders = partyId || userPartyId || "internal";
+
   const { data: parties } = useQuery({
     queryKey: ["parties-list-for-parts"],
     queryFn: listParties,
   });
 
   const { data: partyFolders } = useQuery({
-    queryKey: ["drive_folders", partyId],
-    queryFn: () => GoogleDriveService.listFolders(partyId),
-    enabled: open && attachDocument && !!partyId && partyId !== "internal",
+    queryKey: ["drive_folders", effectivePartyForFolders],
+    queryFn: () => GoogleDriveService.listFolders(effectivePartyForFolders),
+    enabled: open && attachDocument && !!effectivePartyForFolders && effectivePartyForFolders !== "internal",
   });
 
   const handleFileChange = (selectedFile: File | null) => {
@@ -484,12 +493,14 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
     setUploadProgress(15);
 
     try {
+      const effectiveParty = (partyId && partyId !== "internal") ? partyId : (userPartyId || null);
+
       // 1. Create the Part
       const newPart = await createPart({
         part_number: partNumber.trim(),
         part_name: partName.trim(),
         drawing_number: drawingNumber.trim() || null,
-        party_id: partyId && partyId !== "internal" ? partyId : null,
+        party_id: effectiveParty,
       });
 
       // 2. If user wants to attach document & selected file
@@ -509,7 +520,7 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
 
         // Upload to Google Drive
         const driveUpload = await GoogleDriveService.uploadFile(file, {
-          partyId: partyId && partyId !== "internal" ? partyId : "internal",
+          partyId: effectiveParty || "internal",
           documentNumber: effectiveDocNumber,
           version: 1,
           targetFolderId: folderId === "root" ? undefined : folderId,
@@ -517,7 +528,7 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
 
         // Create Document
         const newDoc = await createDocument({
-          party_id: partyId && partyId !== "internal" ? partyId : undefined,
+          party_id: effectiveParty || undefined,
           part_id: newPart.id,
           document_number: effectiveDocNumber,
           document_name: effectiveDocName,
@@ -823,6 +834,7 @@ function AddPartDialog({ onAdded }: { onAdded: () => void }) {
 function PartsPage() {
   const { can, isSuperAdmin, userPartyId } = usePermissions();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const [partyId, setPartyId] = useState<string>("all");
@@ -843,6 +855,66 @@ function PartsPage() {
     queryKey: ["parts-list", effectivePartyId],
     queryFn: () => listParts(effectivePartyId),
   });
+
+  const { data: documentsData, refetch: refetchDocs } = useQuery({
+    queryKey: ["parts-page-documents", effectivePartyId],
+    queryFn: () => listDocuments({ partyId: effectivePartyId, pageSize: 200 }),
+  });
+
+  const { data: fallbackDocsData } = useQuery({
+    queryKey: ["parts-page-fallback-docs"],
+    queryFn: () => listDocuments({ pageSize: 200 }),
+  });
+
+  const handleSuccessRefresh = () => {
+    refetch();
+    refetchDocs();
+    queryClient.invalidateQueries({ queryKey: ["parts-list"] });
+    queryClient.invalidateQueries({ queryKey: ["parts-page-documents"] });
+    queryClient.invalidateQueries({ queryKey: ["parts-page-fallback-docs"] });
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
+  };
+
+  const allAvailableDocs = useMemo(() => {
+    const list = [...(documentsData?.rows || [])];
+    (fallbackDocsData?.rows || []).forEach(d => {
+      if (!list.some(existing => existing.id === d.id)) list.push(d);
+    });
+    return list;
+  }, [documentsData, fallbackDocsData]);
+
+  const getDocsForPart = (part: PartWithDetails) => {
+    const pNum = part.part_number.trim().toLowerCase();
+    const drgNum = part.drawing_number?.trim().toLowerCase() || "";
+
+    const matched = allAvailableDocs.filter(doc => {
+      if (doc.part_id && doc.part_id === part.id) return true;
+
+      const docPartNum = doc.part_number?.trim().toLowerCase();
+      const docNum = doc.document_number?.trim().toLowerCase();
+      const docDrg = doc.drawing_number?.trim().toLowerCase();
+
+      // Match by part_number
+      if (docPartNum && docPartNum === pNum) return true;
+      // Match if document_number is the part number
+      if (docNum && docNum === pNum) return true;
+      // Match by drawing number
+      if (drgNum && docDrg && docDrg === drgNum) return true;
+      if (drgNum && docNum && docNum === drgNum) return true;
+
+      return false;
+    });
+
+    // Auto-heal missing part_id in background
+    matched.forEach(doc => {
+      if (!doc.part_id) {
+        updateDocument(doc.id, { part_id: part.id, part_number: part.part_number }).catch(() => {});
+      }
+    });
+
+    if (matched.length > 0) return matched;
+    return part.documents || [];
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedParts(prev => ({ ...prev, [id]: !prev[id] }));
@@ -895,7 +967,7 @@ function PartsPage() {
         </div>
         <div className="flex items-center gap-2">
           {can("upload") && (
-            <AddPartDialog onAdded={() => refetch()} />
+            <AddPartDialog onAdded={handleSuccessRefresh} />
           )}
         </div>
       </div>
@@ -970,7 +1042,7 @@ function PartsPage() {
             ) : (
               filteredParts.map((part) => {
                 const isExpanded = !!expandedParts[part.id];
-                const partDocs = part.documents || [];
+                const partDocs = getDocsForPart(part);
 
                 return (
                   <>
@@ -1217,7 +1289,7 @@ function PartsPage() {
         part={selectedPartForUpload} 
         open={uploadDialogOpen} 
         onOpenChange={setUploadDialogOpen} 
-        onSuccess={() => refetch()} 
+        onSuccess={handleSuccessRefresh} 
       />
     </div>
   );
