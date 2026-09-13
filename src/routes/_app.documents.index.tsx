@@ -17,7 +17,9 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink, RefreshCw, Laptop } from "lucide-react";
 import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
 import { toast } from "sonner";
@@ -26,7 +28,7 @@ export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
 });
 
-function DocumentRow({ doc, can, navigate, onPreview, onDownload }: { doc: any; can: any; navigate: any; onPreview?: any; onDownload?: any }) {
+function DocumentRow({ doc, can, navigate, onPreview, onDownload, onOpenLocally }: { doc: any; can: any; navigate: any; onPreview?: any; onDownload?: any; onOpenLocally?: any }) {
   const latestVer = doc.versions?.[0];
   return (
     <TableRow key={doc.id} className="hover:bg-slate-50">
@@ -61,6 +63,11 @@ function DocumentRow({ doc, can, navigate, onPreview, onDownload }: { doc: any; 
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {latestVer && (
+              <DropdownMenuItem onClick={() => onOpenLocally?.(doc, latestVer)}>
+                <Laptop className="mr-2 h-4 w-4 text-indigo-600" /> Open Locally (CAD)
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => navigate({ to: `/documents/${doc.id}` })}>
               <Info className="mr-2 h-4 w-4" /> Details
             </DropdownMenuItem>
@@ -106,6 +113,20 @@ function DocumentsPage() {
   const [viewMode, setViewMode] = useState<"list" | "folders">("folders");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
+  const [localDrivePath, setLocalDrivePath] = useState("G:\\My Drive\\CNC Vault");
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("localDrivePath");
+    if (saved) setLocalDrivePath(saved);
+  }, []);
+
+  const handleSaveSettings = () => {
+    localStorage.setItem("localDrivePath", localDrivePath);
+    setShowSettingsDialog(false);
+    toast.success("Local Drive Path saved.");
+  };
+
   const toggleFolderExpand = (id: string) => {
     setExpandedFolders(prev => ({
       ...prev,
@@ -135,6 +156,25 @@ function DocumentsPage() {
         toast.dismiss();
         toast.error(e.message || "Failed to download file");
       });
+  };
+
+  const handleOpenLocally = (doc: any, version: any) => {
+    let basePath = localDrivePath;
+    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
+    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
+
+    const fullPath = `${basePath}\\${doc.document_number}\\V${version.version_number}\\${version.file_name}`;
+    
+    // Base64 encode unicode-safe
+    const base64EncodeUnicode = (str: string) => {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+          function toSolidBytes(_match, p1) {
+              return String.fromCharCode(parseInt(p1, 16));
+      }));
+    };
+    
+    const encodedPath = base64EncodeUnicode(fullPath);
+    window.location.href = `cncvault://open?b64path=${encodedPath}`;
   };
 
   const queryClient = useQueryClient();
@@ -274,6 +314,38 @@ function DocumentsPage() {
               List View
             </Button>
           </div>
+
+          <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-white hover:bg-slate-50 text-slate-700 border-slate-200">
+                <Laptop className="w-4 h-4 mr-2" />
+                Local Setup
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Local Workspace Setup</DialogTitle>
+                <DialogDescription>
+                  Configure how CNC Vault connects to your local CAD software.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Step 1: Install 1-Click Open Helper</Label>
+                  <p className="text-sm text-muted-foreground">Download and run this one-time setup script on your Windows PC to allow your browser to launch CAD files.</p>
+                  <Button variant="outline" onClick={() => window.open("/setup-launcher.bat", "_blank")}>Download Windows Helper</Button>
+                </div>
+                <div className="space-y-2">
+                  <Label>Step 2: Local Drive Path</Label>
+                  <p className="text-sm text-muted-foreground">The folder where Google Drive Desktop is installed on this PC.</p>
+                  <Input value={localDrivePath} onChange={(e) => setLocalDrivePath(e.target.value)} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleSaveSettings}>Save Settings</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {can("upload") && (
             <>
@@ -536,6 +608,11 @@ function DocumentsPage() {
                                                   </Button>
                                                 )}
                                                 {ver.google_drive_file_id && (
+                                                  <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={() => handleOpenLocally(doc, ver)}>
+                                                    <Laptop className="w-3 h-3 mr-1" /> Open Locally
+                                                  </Button>
+                                                )}
+                                                {ver.google_drive_file_id && (
                                                   <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" onClick={() => window.open(`https://drive.google.com/file/d/${ver.google_drive_file_id}/view`, '_blank')}>
                                                     <ExternalLink className="w-3 h-3 mr-1" /> Open in Drive
                                                   </Button>
@@ -598,6 +675,7 @@ function DocumentsPage() {
                     navigate={navigate} 
                     onPreview={handlePreview} 
                     onDownload={handleDownload} 
+                    onOpenLocally={handleOpenLocally}
                   />
                 ))
               )}

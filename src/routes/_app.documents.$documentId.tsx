@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { formatBytes } from "@/lib/rbac";
-import { Download, Upload, Eye, Shield, FileText, History, Info, ChevronLeft, ExternalLink } from "lucide-react";
+import { Download, Upload, Eye, Shield, FileText, History, Info, ChevronLeft, ExternalLink, Laptop } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -27,6 +27,21 @@ export const Route = createFileRoute("/_app/documents/$documentId")({
 function DocumentDetailPage() {
   const { documentId } = Route.useParams();
   const { can } = usePermissions();
+
+  const handleOpenLocally = (documentInfo: any, version: any) => {
+    let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
+    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
+    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
+    const fullPath = `${basePath}\\${documentInfo.document_number}\\V${version.version_number}\\${version.file_name}`;
+    const base64EncodeUnicode = (str: string) => {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+          function toSolidBytes(_match, p1) {
+              return String.fromCharCode(parseInt(p1, 16));
+      }));
+    };
+    const encodedPath = base64EncodeUnicode(fullPath);
+    window.location.href = `cncvault://open?b64path=${encodedPath}`;
+  };
 
   const { data: doc, isLoading: docLoading } = useQuery({
     queryKey: ["document", documentId],
@@ -99,16 +114,26 @@ function DocumentDetailPage() {
               Download
             </Button>
           )}
-          {versions && versions.length > 0 && versions[0].google_drive_file_id && (
-            <Button 
-              variant="outline" 
-              className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-              onClick={() => window.open(`https://drive.google.com/file/d/${versions[0].google_drive_file_id}/view`, '_blank')}
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              Open in Drive
-            </Button>
-          )}
+          {versions?.[0]?.google_drive_file_id && (
+              <>
+                <Button 
+                  variant="outline" 
+                  className="bg-white hover:bg-slate-50 text-indigo-600 border-slate-200"
+                  onClick={() => handleOpenLocally(doc, versions[0])}
+                >
+                  <Laptop className="w-4 h-4 mr-2" />
+                  Open Locally
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+                  onClick={() => window.open(`https://drive.google.com/file/d/${versions[0].google_drive_file_id}/view`, '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Open in Drive
+                </Button>
+              </>
+            )}
           {can("upload") && (
             <Button className="bg-indigo-600 hover:bg-indigo-700">
               <Upload className="w-4 h-4 mr-2" />

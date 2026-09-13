@@ -973,6 +973,21 @@ function PartsPage() {
       });
   };
 
+  const handleOpenLocally = (doc: any, version: any) => {
+    let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
+    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
+    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
+    const fullPath = `${basePath}\\${doc.document_number}\\V${version.version_number}\\${version.file_name}`;
+    const base64EncodeUnicode = (str: string) => {
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+          function toSolidBytes(_match, p1) {
+              return String.fromCharCode(parseInt(p1, 16));
+      }));
+    };
+    const encodedPath = base64EncodeUnicode(fullPath);
+    window.location.href = `cncvault://open?b64path=${encodedPath}`;
+  };
+
   const filteredParts = parts?.filter(p => 
     !search || 
     p.part_number.toLowerCase().includes(search.toLowerCase()) || 
@@ -1273,14 +1288,24 @@ function PartsPage() {
                                         )}
 
                                         {latestVer?.google_drive_file_id && (
-                                          <Button 
-                                            size="sm" 
-                                            variant="ghost" 
-                                            className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2"
-                                            onClick={() => window.open(`https://drive.google.com/file/d/${latestVer.google_drive_file_id}/view`, '_blank')}
-                                          >
-                                            <ExternalLink className="w-3.5 h-3.5 mr-1" /> Open in Drive
-                                          </Button>
+                                          <>
+                                            <Button 
+                                              size="sm" 
+                                              variant="ghost" 
+                                              className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2"
+                                              onClick={() => handleOpenLocally(doc, latestVer)}
+                                            >
+                                              <Laptop className="w-3.5 h-3.5 mr-1" /> Open Locally
+                                            </Button>
+                                            <Button 
+                                              size="sm" 
+                                              variant="ghost" 
+                                              className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2"
+                                              onClick={() => window.open(`https://drive.google.com/file/d/${latestVer.google_drive_file_id}/view`, '_blank')}
+                                            >
+                                              <ExternalLink className="w-3.5 h-3.5 mr-1" /> Open in Drive
+                                            </Button>
+                                          </>
                                         )}
 
                                         <Button 
