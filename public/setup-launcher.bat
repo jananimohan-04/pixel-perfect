@@ -12,18 +12,16 @@ echo.
 mkdir "%USERPROFILE%\.cncvault" 2>nul
 
 echo Creating launcher script...
-(
-echo $url = $args[0]
-echo if (!$url) { exit }
-echo $b64 = ($url -split 'b64path=')[1].TrimEnd('/')
-echo $path = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64))
-echo if (Test-Path $path) {
-echo     Start-Process -FilePath "$path"
-echo } else {
-echo     Add-Type -AssemblyName PresentationCore,PresentationFramework
-echo     [System.Windows.MessageBox]::Show(("File not found at: " + $path + "`n`nPlease check your Local Drive Path settings in CNC Vault."), "CNC Vault Launcher Error", 0, 16)
-echo }
-) > "%USERPROFILE%\.cncvault\launcher.ps1"
+echo $url = $args[0] > "%USERPROFILE%\.cncvault\launcher.ps1"
+echo if (!$url) { exit } >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo $b64 = ($url -split 'b64path=')[1].TrimEnd('/') >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo $path = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64)) >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo if (Test-Path $path) { >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo     Start-Process -FilePath "$path" >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo } else { >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo     Add-Type -AssemblyName PresentationCore,PresentationFramework >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo     [System.Windows.MessageBox]::Show(("File not found at: " + $path + "`n`nPlease check your Local Drive Path settings in CNC Vault."), "CNC Vault Launcher Error", 0, 16) >> "%USERPROFILE%\.cncvault\launcher.ps1"
+echo } >> "%USERPROFILE%\.cncvault\launcher.ps1"
 
 echo Registering cncvault:// protocol for current user...
 reg add HKCU\SOFTWARE\Classes\cncvault /t REG_SZ /d "URL:CNC Vault Protocol" /f >nul
