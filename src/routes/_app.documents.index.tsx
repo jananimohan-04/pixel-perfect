@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { listDocuments, listParties } from "@/lib/api";
+import { GoogleDriveService } from "@/services/google-drive";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,6 +116,8 @@ function DocumentsPage() {
 
   const [localDrivePath, setLocalDrivePath] = useState("G:\\My Drive\\CNC Vault");
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [shareEmail, setShareEmail] = useState("");
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("localDrivePath");
@@ -126,6 +129,23 @@ function DocumentsPage() {
     setShowSettingsDialog(false);
     toast.success("Local Drive Path saved.");
   };
+
+  const handleShareWorkspace = async () => {
+    if (!shareEmail) return toast.error("Please enter an email address");
+    const targetPartyId = profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
+    
+    setIsSharing(true);
+    try {
+      await GoogleDriveService.shareFolder(targetPartyId, shareEmail);
+      toast.success(`Workspace shared with ${shareEmail}! They can now add it to their Google Drive.`);
+      setShareEmail("");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to share workspace");
+    } finally {
+      setIsSharing(false);
+    }
+
 
   const toggleFolderExpand = (id: string) => {
     setExpandedFolders(prev => ({
@@ -331,14 +351,31 @@ function DocumentsPage() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Step 1: Install 1-Click Open Helper</Label>
-                  <p className="text-sm text-muted-foreground">Download and run this one-time setup script on your Windows PC to allow your browser to launch CAD files.</p>
-                  <Button variant="outline" onClick={() => window.open("/setup-launcher.bat", "_blank")}>Download Windows Helper</Button>
+                  <Label>Step 1: Install Windows Helper</Label>
+                  <p className="text-sm text-muted-foreground">Download and run this file once to allow CNC Vault to open local software.</p>
+                  <Button variant="outline" onClick={() => {
+                    const link = document.createElement("a");
+                    link.href = "/setup-launcher.bat";
+                    link.download = "setup-launcher.bat";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}>Download Windows Helper</Button>
                 </div>
                 <div className="space-y-2">
                   <Label>Step 2: Local Drive Path</Label>
                   <p className="text-sm text-muted-foreground">The folder where Google Drive Desktop is installed on this PC.</p>
                   <Input value={localDrivePath} onChange={(e) => setLocalDrivePath(e.target.value)} />
+                </div>
+                <div className="space-y-2 pt-4 border-t">
+                  <Label>Team Workspace Sharing</Label>
+                  <p className="text-sm text-muted-foreground">Share this CNC Vault workspace with a teammate's Google Account so they can mount it.</p>
+                  <div className="flex gap-2">
+                    <Input placeholder="employee@company.com" value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} />
+                    <Button variant="secondary" onClick={handleShareWorkspace} disabled={isSharing}>
+                      {isSharing ? 'Sharing...' : 'Share'}
+                    </Button>
+                  </div>
                 </div>
               </div>
               <DialogFooter>

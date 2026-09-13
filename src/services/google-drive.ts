@@ -168,4 +168,15 @@ export class GoogleDriveService {
     if (error) throw new Error(error.message || "Failed to sync versions");
     return data;
   }
+
+  /**
+   * Shares the root workspace folder with an employee email.
+   */
+  static async shareFolder(partyId: string, emailAddress: string): Promise<{ success: boolean }> {
+    const { data, error } = await supabase.functions.invoke('drive-api/share-folder', {
+      body: { partyId, emailAddress }
+    });
+    if (error) throw new Error(error.message || "Failed to share folder");
+    return data;
+  }
 }

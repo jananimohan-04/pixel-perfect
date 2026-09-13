@@ -470,6 +470,40 @@ serve(async (req) => {
       return new Response(JSON.stringify({ synced: syncedCount }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'share-folder' && req.method === 'POST') {
+      const body = await req.json();
+      const { partyId, emailAddress } = body;
+      if (!partyId || !emailAddress) throw new Error('partyId and emailAddress required');
+
+      const { data: rbacCheck } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'manage_settings' });
+      const { data: profile } = await supabaseClient.from('cncvault_profiles').select('party_id').eq('user_id', user.id).maybeSingle();
+      const isSuperAdmin = !profile?.party_id;
+      if (!rbacCheck && !isSuperAdmin) throw new Error('Permission denied');
+
+      const { data: partyData } = await supabaseClient.from('cncvault_parties').select('drive_refresh_token, drive_folder_id').eq('id', partyId).single();
+      if (!partyData?.drive_refresh_token || !partyData?.drive_folder_id) throw new Error('Drive not connected for this party');
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      const shareBody = {
+        role: 'writer',
+        type: 'user',
+        emailAddress: emailAddress
+      };
+
+      const shareRes = await fetch(`https://www.googleapis.com/drive/v3/files/${partyData.drive_folder_id}/permissions?sendNotificationEmail=true`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(shareBody)
+      });
+
+      if (!shareRes.ok) throw new Error(`Failed to share folder: ${await shareRes.text()}`);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if ((action === 'download' || action === 'view') && req.method === 'GET') {
       const driveFileId = url.searchParams.get('fileId');
       const documentId = url.searchParams.get('documentId');
