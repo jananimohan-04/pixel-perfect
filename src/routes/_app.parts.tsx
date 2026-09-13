@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,8 @@ import {
   Layers, 
   Loader2,
   FileCheck,
-  ExternalLink
+  ExternalLink,
+  Laptop
 } from "lucide-react";
 import { 
   DropdownMenu, 
