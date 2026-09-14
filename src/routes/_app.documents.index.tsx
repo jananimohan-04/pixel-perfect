@@ -163,12 +163,14 @@ function DocumentsPage() {
 
   const handleBatchShare = async () => {
     if (!batchShareEmail) return toast.error("Please enter an email address");
-    const targetPartyId = profile?.party_id || partyId;
-    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
     
     // Get drive file ids for selected docs
-    const selectedDocsData = data?.documents.filter(d => selectedDocIds.includes(d.id));
-    const fileIds = selectedDocsData?.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    const selectedDocsData = data?.rows?.filter(d => selectedDocIds.includes(d.id)) || [];
+    
+    const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
+
+    const fileIds = selectedDocsData.map(d => d.google_drive_file_id).filter(Boolean) as string[];
     if (!fileIds || fileIds.length === 0) return toast.error("None of the selected documents have Google Drive files attached.");
 
     setIsBatchSharing(true);

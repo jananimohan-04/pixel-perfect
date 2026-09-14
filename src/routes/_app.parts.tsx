@@ -852,12 +852,12 @@ function PartsPage() {
 
   const handleBatchShare = async () => {
     if (!batchShareEmail) return toast.error("Please enter an email address");
-    const targetPartyId = profile?.party_id || partyId;
-    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
-    
-    // Flatten docs from parts to find the file IDs
-    const allDocs = data?.rows?.flatMap(p => p.cncvault_documents) || [];
+    // Find the file IDs from all fetched documents
+    const allDocs = [...(documentsData?.rows || []), ...(fallbackDocsData?.rows || [])];
     const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
+
+    const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
     const fileIds = selectedDocsData?.map(d => d.google_drive_file_id).filter(Boolean) as string[];
     
     if (!fileIds || fileIds.length === 0) return toast.error("None of the selected documents have Google Drive files attached.");
