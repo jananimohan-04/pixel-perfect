@@ -1347,16 +1347,37 @@ function PartsPage() {
                                 </Badge>
                               </div>
 
-                              {can("upload") && (
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost" 
-                                  className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                                  onClick={() => handleOpenUploadForPart(part)}
-                                >
-                                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Document to this Part
-                                </Button>
-                              )}
+                              <div className="flex items-center gap-1">
+                                {partDocs.length > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 mr-1"
+                                    onClick={() => {
+                                      const allDocsSelected = partDocs.every((d: any) => selectedDocIds.includes(d.id));
+                                      if (allDocsSelected) {
+                                        setSelectedDocIds(prev => prev.filter(id => !partDocs.some((d: any) => d.id === id)));
+                                      } else {
+                                        setSelectedDocIds(prev => [...new Set([...prev, ...partDocs.map((d: any) => d.id)])]);
+                                      }
+                                    }}
+                                  >
+                                    <CheckSquare className="w-3.5 h-3.5 mr-1" />
+                                    {partDocs.every((d: any) => selectedDocIds.includes(d.id)) ? "Deselect All" : "Select All"}
+                                  </Button>
+                                )}
+                                
+                                {can("upload") && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-7 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                    onClick={() => handleOpenUploadForPart(part)}
+                                  >
+                                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Document to this Part
+                                  </Button>
+                                )}
+                              </div>
                             </div>
 
                             {partDocs.length === 0 ? (
