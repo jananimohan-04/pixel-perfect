@@ -263,14 +263,25 @@ function DocumentsPage() {
   };
 
   const handleOpenLocally = (doc: any, version: any) => {
-    const payload = `filename=${version.file_name}`;
+    let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
+    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
+    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
+    const fullPath = `${basePath}\\${doc.document_number}\\V${version.version_number}\\${version.file_name}`;
+
+    const payloadObj = {
+      fileName: version.file_name,
+      documentNumber: doc.document_number,
+      versionNumber: version.version_number,
+      fullPath: fullPath,
+    };
+
     const base64EncodeUnicode = (str: string) => {
       return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
           function toSolidBytes(_match, p1) {
               return String.fromCharCode(parseInt(p1, 16));
       }));
     };
-    const encodedPayload = base64EncodeUnicode(payload);
+    const encodedPayload = base64EncodeUnicode(JSON.stringify(payloadObj));
     window.location.href = `cncvault://open?b64payload=${encodedPayload}`;
   };
 
