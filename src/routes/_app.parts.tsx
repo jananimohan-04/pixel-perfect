@@ -849,6 +849,53 @@ function PartsPage() {
   const [showBatchShareDialog, setShowBatchShareDialog] = useState(false);
   const [batchShareEmail, setBatchShareEmail] = useState("");
   const [isBatchSharing, setIsBatchSharing] = useState(false);
+  const [sharedEmails, setSharedEmails] = useState<string[]>([]);
+  const [isLoadingSharedEmails, setIsLoadingSharedEmails] = useState(false);
+
+  const fetchSharedEmails = async () => {
+    const allDocs = [...(documentsData?.rows || []), ...(fallbackDocsData?.rows || [])];
+    const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
+    const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return;
+    const fileIds = selectedDocsData.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    if (fileIds.length === 0) return;
+
+    setIsLoadingSharedEmails(true);
+    try {
+      const res = await GoogleDriveService.listFilePermissions(targetPartyId, fileIds);
+      setSharedEmails(res.emails || []);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load shared emails");
+    } finally {
+      setIsLoadingSharedEmails(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showBatchShareDialog && selectedDocIds.length > 0) {
+      fetchSharedEmails();
+    } else {
+      setSharedEmails([]);
+      setBatchShareEmail("");
+    }
+  }, [showBatchShareDialog, selectedDocIds]);
+
+  const handleUnshare = async (email: string) => {
+    const allDocs = [...(documentsData?.rows || []), ...(fallbackDocsData?.rows || [])];
+    const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
+    const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return;
+    const fileIds = selectedDocsData.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+
+    const toastId = toast.loading(`Unsharing from ${email}...`);
+    try {
+      const res = await GoogleDriveService.unshareFiles(targetPartyId, fileIds, email);
+      toast.success(`Revoked access for ${email} from ${res.count} document(s)`, { id: toastId });
+      fetchSharedEmails();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to unshare", { id: toastId });
+    }
+  };
 
   const handleBatchShare = async () => {
     if (!batchShareEmail) return toast.error("Please enter an email address");
@@ -867,8 +914,7 @@ function PartsPage() {
       await GoogleDriveService.shareFiles(targetPartyId, fileIds, batchShareEmail);
       toast.success(`Shared ${fileIds.length} documents with ${batchShareEmail}!`);
       setBatchShareEmail("");
-      setShowBatchShareDialog(false);
-      setSelectedDocIds([]);
+      fetchSharedEmails();
     } catch (e: any) {
       toast.error(e.message || "Failed to share documents");
     } finally {
@@ -1071,18 +1117,41 @@ function PartsPage() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Recipient Email</Label>
-                    <Input 
-                      placeholder="vendor@example.com" 
-                      value={batchShareEmail} 
-                      onChange={e => setBatchShareEmail(e.target.value)} 
-                    />
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="vendor@example.com" 
+                        value={batchShareEmail} 
+                        onChange={e => setBatchShareEmail(e.target.value)} 
+                        onKeyDown={e => e.key === 'Enter' && handleBatchShare()}
+                      />
+                      <Button onClick={handleBatchShare} disabled={isBatchSharing}>
+                        {isBatchSharing ? 'Sharing...' : 'Share'}
+                      </Button>
+                    </div>
                   </div>
+
+                  {isLoadingSharedEmails ? (
+                    <div className="text-sm text-slate-500 text-center py-2">Loading permissions...</div>
+                  ) : sharedEmails.length > 0 ? (
+                    <div className="space-y-2 mt-4">
+                      <Label className="text-xs text-slate-500 uppercase tracking-wider">Currently Shared With</Label>
+                      <div className="bg-slate-50 rounded-md border border-slate-200 divide-y divide-slate-200 max-h-[200px] overflow-y-auto">
+                        {sharedEmails.map(email => (
+                          <div key={email} className="flex items-center justify-between p-2.5 text-sm">
+                            <span className="text-slate-700 font-medium">{email}</span>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleUnshare(email)}>
+                              Unshare
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-slate-500 text-center py-2 mt-4">Not shared with any external users yet.</div>
+                  )}
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowBatchShareDialog(false)}>Cancel</Button>
-                  <Button onClick={handleBatchShare} disabled={isBatchSharing}>
-                    {isBatchSharing ? 'Sharing...' : 'Share'}
-                  </Button>
+                  <Button variant="outline" onClick={() => setShowBatchShareDialog(false)}>Close</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

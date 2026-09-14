@@ -548,6 +548,85 @@ serve(async (req) => {
       return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'list-file-permissions' && req.method === 'POST') {
+      const body = await req.json();
+      const { partyId, fileIds } = body;
+      if (!partyId || !fileIds || !Array.isArray(fileIds)) throw new Error('partyId and fileIds array required');
+
+      const { data: canUpload } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
+      const { data: profile } = await supabaseClient.from('cncvault_profiles').select('party_id').eq('user_id', user.id).maybeSingle();
+      const isSuperAdmin = !profile?.party_id;
+      if (!canUpload && !isSuperAdmin) throw new Error('Permission denied');
+
+      const { data: partyData } = await supabaseClient.from('cncvault_parties').select('drive_refresh_token').eq('id', partyId).single();
+      if (!partyData?.drive_refresh_token) throw new Error('Drive not connected for this party');
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      const allEmails = new Set<string>();
+      for (const fileId of fileIds) {
+        try {
+          const shareRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?fields=permissions(id,emailAddress,role)`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (!shareRes.ok) continue;
+          const data = await shareRes.json();
+          const permissions = data.permissions || [];
+          for (const perm of permissions) {
+            if (perm.emailAddress && perm.role !== 'owner') {
+              allEmails.add(perm.emailAddress);
+            }
+          }
+        } catch (err: any) {}
+      }
+
+      return new Response(JSON.stringify({ emails: Array.from(allEmails) }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    if (action === 'unshare-files' && req.method === 'POST') {
+      const body = await req.json();
+      const { partyId, fileIds, emailAddress } = body;
+      if (!partyId || !fileIds || !Array.isArray(fileIds) || !emailAddress) throw new Error('partyId, fileIds array, and emailAddress required');
+
+      const { data: canUpload } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
+      const { data: profile } = await supabaseClient.from('cncvault_profiles').select('party_id').eq('user_id', user.id).maybeSingle();
+      const isSuperAdmin = !profile?.party_id;
+      if (!canUpload && !isSuperAdmin) throw new Error('Permission denied');
+
+      const { data: partyData } = await supabaseClient.from('cncvault_parties').select('drive_refresh_token').eq('id', partyId).single();
+      if (!partyData?.drive_refresh_token) throw new Error('Drive not connected for this party');
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      let successCount = 0;
+      for (const fileId of fileIds) {
+        try {
+          // First get the permissionId for this email
+          const getRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?fields=permissions(id,emailAddress)`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (!getRes.ok) continue;
+          const data = await getRes.json();
+          const permission = (data.permissions || []).find((p: any) => p.emailAddress === emailAddress);
+          
+          if (permission && permission.id) {
+            // Delete the permission
+            const delRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions/${permission.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (delRes.ok) successCount++;
+          }
+        } catch (err: any) {}
+      }
+
+      return new Response(JSON.stringify({ success: true, count: successCount }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if ((action === 'download' || action === 'view') && req.method === 'GET') {
       const driveFileId = url.searchParams.get('fileId');
       const documentId = url.searchParams.get('documentId');

@@ -190,4 +190,26 @@ export class GoogleDriveService {
     if (error) throw new Error(error.message || "Failed to share files");
     return data;
   }
+
+  /**
+   * Lists emails that have access to the provided files.
+   */
+  static async listFilePermissions(partyId: string, fileIds: string[]): Promise<{ emails: string[] }> {
+    const { data, error } = await supabase.functions.invoke('drive-api/list-file-permissions', {
+      body: { partyId, fileIds }
+    });
+    if (error) throw new Error(error.message || "Failed to list permissions");
+    return data;
+  }
+
+  /**
+   * Revokes access to the provided files for an email.
+   */
+  static async unshareFiles(partyId: string, fileIds: string[], emailAddress: string): Promise<{ success: boolean, count: number }> {
+    const { data, error } = await supabase.functions.invoke('drive-api/unshare-files', {
+      body: { partyId, fileIds, emailAddress }
+    });
+    if (error) throw new Error(error.message || "Failed to unshare files");
+    return data;
+  }
 }
