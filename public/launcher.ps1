@@ -35,6 +35,10 @@ try {
 
     $fileName = $null
     $expectedPath = $null
+    $documentNumber = $null
+    $versionNumber = $null
+    $downloadUrl = $null
+    $authToken = $null
 
     # Try parsing as JSON
     if ($decoded.StartsWith("{") -and $decoded.EndsWith("}")) {
@@ -42,6 +46,10 @@ try {
             $json = $decoded | ConvertFrom-Json
             $fileName = $json.fileName
             $expectedPath = $json.fullPath
+            $documentNumber = $json.documentNumber
+            $versionNumber = $json.versionNumber
+            $downloadUrl = $json.downloadUrl
+            $authToken = $json.authToken
         } catch {}
     }
 
@@ -81,7 +89,6 @@ try {
     $foundFile = $null
     $drivesToSearch = @()
 
-    # Collect all existing G:, H:, I: etc. drives or My Drive folders
     foreach ($letter in [char[]](67..90)) { # C to Z
         $driveRoot = "$($letter):\"
         if (Test-Path $driveRoot) {
@@ -92,7 +99,6 @@ try {
         }
     }
 
-    # Fallback to G:\ explicitly if not already added
     if (Test-Path "G:\") {
         if (!($drivesToSearch -contains "G:\My Drive") -and (Test-Path "G:\My Drive")) {
             $drivesToSearch += "G:\My Drive"
@@ -100,7 +106,6 @@ try {
         $drivesToSearch += "G:\"
     }
 
-    # Remove duplicates
     $drivesToSearch = $drivesToSearch | Select-Object -Unique
 
     Log "Searching drives: $($drivesToSearch -join ', ') for '$fileName'"
@@ -118,15 +123,43 @@ try {
     }
 
     if ($foundFile) {
-        Log "Launching: $foundFile"
+        Log "Launching local file: $foundFile"
         Start-Process -FilePath $foundFile
         exit
     }
 
-    # 4. If not found, show user-friendly top-most alert
-    Log "File '$fileName' not found on any local drive."
-    $msg = "File not found on your local Google Drive:`n`n$fileName`n`nWhy this happens:`n1. Google Drive Desktop on this PC is signed in to a different Google account, or`n2. If this file was shared with you, open drive.google.com -> 'Shared with me', right-click the folder and select 'Add shortcut to My Drive'.`n`nTip: You can also use the 'Download' or 'Preview' button in CNC Vault directly to view or edit this file."
-    [System.Windows.Forms.MessageBox]::Show($msg, "CNC Vault - File Not Synced Locally", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information, [System.Windows.Forms.MessageBoxDefaultButton]::Button1, [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly)
+    # 4. If not found locally on disk, AUTO-DOWNLOAD directly from cloud
+    if (![string]::IsNullOrWhiteSpace($downloadUrl)) {
+        Log "File not found locally on disk. Attempting auto-download from cloud: $downloadUrl"
+        $docFolder = if (![string]::IsNullOrWhiteSpace($documentNumber)) { $documentNumber } else { "general" }
+        $verFolder = if (![string]::IsNullOrWhiteSpace($versionNumber)) { "V$versionNumber" } else { "V1" }
+        $cacheDir = "$env:USERPROFILE\.cncvault\cache\$docFolder\$verFolder"
+        if (!(Test-Path $cacheDir)) { New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null }
+        $cachedFile = "$cacheDir\$fileName"
+
+        try {
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+            $headers = @{}
+            if (![string]::IsNullOrWhiteSpace($authToken)) {
+                $headers["Authorization"] = "Bearer $authToken"
+            }
+            Log "Downloading to cache: $cachedFile"
+            Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $cachedFile -UseBasicParsing
+            if (Test-Path $cachedFile) {
+                $fileSize = (Get-Item $cachedFile).Length
+                Log "Download complete (Size: $fileSize bytes). Launching: $cachedFile"
+                Start-Process -FilePath $cachedFile
+                exit
+            }
+        } catch {
+            Log "Auto-download failed: $_`n$($_.ScriptStackTrace)"
+        }
+    }
+
+    # 5. If both local search and cloud auto-download fail, show helpful alert
+    Log "File '$fileName' could not be opened."
+    $msg = "File could not be opened locally:`n`n$fileName`n`nGoogle Drive Desktop has not synced this file, and the cloud download could not be completed.`n`nTip: You can use the 'Download' or 'Preview' button directly in CNC Vault."
+    [System.Windows.Forms.MessageBox]::Show($msg, "CNC Vault - Notice", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information, [System.Windows.Forms.MessageBoxDefaultButton]::Button1, [System.Windows.Forms.MessageBoxOptions]::DefaultDesktopOnly)
 
 } catch {
     Log "CRITICAL ERROR: $_`n$($_.ScriptStackTrace)"

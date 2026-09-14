@@ -28,27 +28,43 @@ function DocumentDetailPage() {
   const { documentId } = Route.useParams();
   const { can } = usePermissions();
 
-  const handleOpenLocally = (documentInfo: any, version: any) => {
-    let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
-    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
-    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
-    const fullPath = `${basePath}\\${documentInfo.document_number}\\V${version.version_number}\\${version.file_name}`;
+  const handleOpenLocally = async (documentInfo: any, version: any) => {
+    toast.loading("Opening document locally...");
+    try {
+      let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
+      if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
+      if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
+      const fullPath = `${basePath}\\${documentInfo.document_number}\\V${version.version_number}\\${version.file_name}`;
 
-    const payloadObj = {
-      fileName: version.file_name,
-      documentNumber: documentInfo.document_number,
-      versionNumber: version.version_number,
-      fullPath: fullPath,
-    };
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || "";
+      const fileId = version.google_drive_file_id || version.drive_file_id;
+      const downloadUrl = fileId 
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/drive-api/download?fileId=${fileId}&documentId=${documentInfo.id}` 
+        : "";
 
-    const base64EncodeUnicode = (str: string) => {
-      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
-          function toSolidBytes(_match, p1) {
-              return String.fromCharCode(parseInt(p1, 16));
-      }));
-    };
-    const encodedPayload = base64EncodeUnicode(JSON.stringify(payloadObj));
-    window.location.href = `cncvault://open?b64payload=${encodedPayload}`;
+      const payloadObj = {
+        fileName: version.file_name,
+        documentNumber: documentInfo.document_number,
+        versionNumber: version.version_number,
+        fullPath: fullPath,
+        downloadUrl: downloadUrl,
+        authToken: token,
+      };
+
+      const base64EncodeUnicode = (str: string) => {
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
+            function toSolidBytes(_match, p1) {
+                return String.fromCharCode(parseInt(p1, 16));
+        }));
+      };
+      const encodedPayload = base64EncodeUnicode(JSON.stringify(payloadObj));
+      window.location.href = `cncvault://open?b64payload=${encodedPayload}`;
+      setTimeout(() => toast.dismiss(), 2000);
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || "Failed to initiate local launcher");
+    }
   };
 
   const { data: doc, isLoading: docLoading } = useQuery({
