@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { listProfiles, listRoles, listUserRoles, listParties, setUserRole, updateProfile, createAuthUserWithoutLogin } from "@/lib/api";
+import { GoogleDriveService } from "@/services/google-drive";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,16 @@ function InviteUserModal({ open, onOpenChange }: { open: boolean; onOpenChange: 
       // 3. Assign Role if selected
       if (roleId) {
         await setUserRole(userId, roleId);
+      }
+
+      // 4. Automatically share Google Drive folder with the new user
+      if (partyId && partyId !== "internal") {
+        try {
+          await GoogleDriveService.shareFolder(partyId, email.trim());
+        } catch (e) {
+          console.warn("Could not automatically share Google Drive folder:", e);
+          // We don't throw here because user creation succeeded
+        }
       }
     },
     onSuccess: () => {
