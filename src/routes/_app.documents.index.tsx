@@ -144,7 +144,7 @@ function DocumentsPage() {
     } finally {
       setIsSharing(false);
     }
-
+  };
 
   const toggleFolderExpand = (id: string) => {
     setExpandedFolders(prev => ({
