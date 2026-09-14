@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { 
   createPart, 
@@ -844,6 +845,37 @@ function PartsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [showBatchShareDialog, setShowBatchShareDialog] = useState(false);
+  const [batchShareEmail, setBatchShareEmail] = useState("");
+  const [isBatchSharing, setIsBatchSharing] = useState(false);
+
+  const handleBatchShare = async () => {
+    if (!batchShareEmail) return toast.error("Please enter an email address");
+    const targetPartyId = profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
+    
+    // Flatten docs from parts to find the file IDs
+    const allDocs = data?.rows?.flatMap(p => p.cncvault_documents) || [];
+    const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
+    const fileIds = selectedDocsData?.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    
+    if (!fileIds || fileIds.length === 0) return toast.error("None of the selected documents have Google Drive files attached.");
+
+    setIsBatchSharing(true);
+    try {
+      await GoogleDriveService.shareFiles(targetPartyId, fileIds, batchShareEmail);
+      toast.success(`Shared ${fileIds.length} documents with ${batchShareEmail}!`);
+      setBatchShareEmail("");
+      setShowBatchShareDialog(false);
+      setSelectedDocIds([]);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to share documents");
+    } finally {
+      setIsBatchSharing(false);
+    }
+  };
+
   // Auto-sync Google Drive
   useEffect(() => {
     const targetPartyId = userPartyId || (partyId !== "all" ? partyId : undefined);
@@ -1012,6 +1044,51 @@ function PartsPage() {
           )}
         </div>
       </div>
+
+      {/* Batch Share Bar */}
+      {selectedDocIds.length > 0 && (
+        <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-indigo-800 text-sm">{selectedDocIds.length} document(s) selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="bg-white" onClick={() => setSelectedDocIds([])}>
+              Clear
+            </Button>
+            <Dialog open={showBatchShareDialog} onOpenChange={setShowBatchShareDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
+                  Share Selected
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Share Documents via Google Drive</DialogTitle>
+                  <DialogDescription>
+                    Grant an external user read access to the selected documents in Google Drive.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Recipient Email</Label>
+                    <Input 
+                      placeholder="vendor@example.com" 
+                      value={batchShareEmail} 
+                      onChange={e => setBatchShareEmail(e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowBatchShareDialog(false)}>Cancel</Button>
+                  <Button onClick={handleBatchShare} disabled={isBatchSharing}>
+                    {isBatchSharing ? 'Sharing...' : 'Share'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      )}
 
       {/* Search & Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4">
@@ -1236,6 +1313,13 @@ function PartsPage() {
                                   return (
                                     <div key={doc.id} className="p-3 flex items-center justify-between hover:bg-slate-50/60 transition-colors">
                                       <div className="flex items-center gap-3">
+                                        <Checkbox 
+                                          checked={selectedDocIds.includes(doc.id)}
+                                          onCheckedChange={() => {
+                                            setSelectedDocIds(prev => prev.includes(doc.id) ? prev.filter(i => i !== doc.id) : [...prev, doc.id])
+                                          }}
+                                          aria-label="Select document"
+                                        />
                                         <div className="w-8 h-8 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
                                           <FileText className="w-4 h-4 text-indigo-600" />
                                         </div>

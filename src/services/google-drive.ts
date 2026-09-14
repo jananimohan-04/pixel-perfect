@@ -179,4 +179,15 @@ export class GoogleDriveService {
     if (error) throw new Error(error.message || "Failed to share folder");
     return data;
   }
+
+  /**
+   * Shares specific documents with an external email.
+   */
+  static async shareFiles(partyId: string, fileIds: string[], emailAddress: string): Promise<{ results: any[] }> {
+    const { data, error } = await supabase.functions.invoke('drive-api/share-files', {
+      body: { partyId, fileIds, emailAddress }
+    });
+    if (error) throw new Error(error.message || "Failed to share files");
+    return data;
+  }
 }

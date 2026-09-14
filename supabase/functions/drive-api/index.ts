@@ -504,6 +504,50 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (action === 'share-files' && req.method === 'POST') {
+      const body = await req.json();
+      const { partyId, fileIds, emailAddress } = body;
+      if (!partyId || !fileIds || !Array.isArray(fileIds) || !emailAddress) throw new Error('partyId, fileIds array, and emailAddress required');
+
+      const { data: canUpload } = await supabaseClient.rpc('has_permission', { _user_id: user.id, _permission: 'upload' });
+      const { data: profile } = await supabaseClient.from('cncvault_profiles').select('party_id').eq('user_id', user.id).maybeSingle();
+      const isSuperAdmin = !profile?.party_id;
+      
+      // Technically sharing files might need a new permission, but 'upload' implies manage docs
+      if (!canUpload && !isSuperAdmin) throw new Error('Permission denied');
+
+      const { data: partyData } = await supabaseClient.from('cncvault_parties').select('drive_refresh_token').eq('id', partyId).single();
+      if (!partyData?.drive_refresh_token) throw new Error('Drive not connected for this party');
+
+      const token = await getAccessTokenFromRefresh(partyData.drive_refresh_token, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+
+      const shareBody = {
+        role: 'reader', // Share files as reader by default
+        type: 'user',
+        emailAddress: emailAddress
+      };
+
+      const results = [];
+      for (const fileId of fileIds) {
+        try {
+          const shareRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?sendNotificationEmail=true`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(shareBody)
+          });
+          if (!shareRes.ok) throw new Error(await shareRes.text());
+          results.push({ fileId, success: true });
+        } catch (err: any) {
+          results.push({ fileId, success: false, error: err.message });
+        }
+      }
+
+      return new Response(JSON.stringify({ results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     if ((action === 'download' || action === 'view') && req.method === 'GET') {
       const driveFileId = url.searchParams.get('fileId');
       const documentId = url.searchParams.get('documentId');

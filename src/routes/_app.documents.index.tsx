@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Building, MoreHorizontal, FileText, Search, Plus, FilterX, Eye, Download, History, Shield, Info, Folder, LayoutGrid, List, ChevronDown, ChevronRight, FolderOpen, ExternalLink, RefreshCw, Laptop } from "lucide-react";
 import { GoogleDriveService, DriveFolder } from "@/services/google-drive";
 import { DOC_STATUSES, DOCUMENT_TYPES } from "@/lib/rbac";
@@ -28,10 +29,19 @@ export const Route = createFileRoute("/_app/documents/")({
   component: DocumentsPage,
 });
 
-function DocumentRow({ doc, can, navigate, onPreview, onDownload, onOpenLocally }: { doc: any; can: any; navigate: any; onPreview?: any; onDownload?: any; onOpenLocally?: any }) {
+function DocumentRow({ doc, can, navigate, onPreview, onDownload, onOpenLocally, isSelected, onSelect }: { doc: any; can: any; navigate: any; onPreview?: any; onDownload?: any; onOpenLocally?: any; isSelected?: boolean; onSelect?: (id: string) => void; }) {
   const latestVer = doc.versions?.[0];
   return (
     <TableRow key={doc.id} className="hover:bg-slate-50">
+      <TableCell className="w-[40px] pl-4">
+        {onSelect && (
+          <Checkbox 
+            checked={isSelected} 
+            onCheckedChange={() => onSelect(doc.id)}
+            aria-label="Select document"
+          />
+        )}
+      </TableCell>
       <TableCell>
         <div className="font-medium text-indigo-600">{doc.document_number}</div>
         <div className="text-xs text-slate-500">v{doc.current_version} | {doc.file_type?.toUpperCase()}</div>
@@ -113,6 +123,11 @@ function DocumentsPage() {
   const [viewMode, setViewMode] = useState<"list" | "folders">("folders");
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [showBatchShareDialog, setShowBatchShareDialog] = useState(false);
+  const [batchShareEmail, setBatchShareEmail] = useState("");
+  const [isBatchSharing, setIsBatchSharing] = useState(false);
+
   const [localDrivePath, setLocalDrivePath] = useState("G:\\My Drive\\CNC Vault");
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
@@ -143,6 +158,30 @@ function DocumentsPage() {
       toast.error(e.message || "Failed to share workspace");
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const handleBatchShare = async () => {
+    if (!batchShareEmail) return toast.error("Please enter an email address");
+    const targetPartyId = profile?.party_id || partyId;
+    if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
+    
+    // Get drive file ids for selected docs
+    const selectedDocsData = data?.documents.filter(d => selectedDocIds.includes(d.id));
+    const fileIds = selectedDocsData?.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    if (!fileIds || fileIds.length === 0) return toast.error("None of the selected documents have Google Drive files attached.");
+
+    setIsBatchSharing(true);
+    try {
+      await GoogleDriveService.shareFiles(targetPartyId, fileIds, batchShareEmail);
+      toast.success(`Shared ${fileIds.length} documents with ${batchShareEmail}!`);
+      setBatchShareEmail("");
+      setShowBatchShareDialog(false);
+      setSelectedDocIds([]);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to share documents");
+    } finally {
+      setIsBatchSharing(false);
     }
   };
 
@@ -403,6 +442,50 @@ function DocumentsPage() {
         </div>
       </div>
 
+      {selectedDocIds.length > 0 && (
+        <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-indigo-800 text-sm">{selectedDocIds.length} document(s) selected</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="bg-white" onClick={() => setSelectedDocIds([])}>
+              Clear
+            </Button>
+            <Dialog open={showBatchShareDialog} onOpenChange={setShowBatchShareDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 shadow-sm">
+                  Share Selected
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Share Documents via Google Drive</DialogTitle>
+                  <DialogDescription>
+                    Grant an external user read access to the selected documents in Google Drive. This does not share the entire workspace.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Recipient Email</Label>
+                    <Input 
+                      placeholder="vendor@example.com" 
+                      value={batchShareEmail} 
+                      onChange={e => setBatchShareEmail(e.target.value)} 
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowBatchShareDialog(false)}>Cancel</Button>
+                  <Button onClick={handleBatchShare} disabled={isBatchSharing}>
+                    {isBatchSharing ? 'Sharing...' : 'Share'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
@@ -597,9 +680,16 @@ function DocumentsPage() {
                                     <div key={doc.id} className="p-3.5 space-y-2 hover:bg-slate-50/80 transition-colors">
                                       {/* Document Main Info */}
                                       <div className="flex items-center justify-between flex-wrap gap-2">
-                                        <div className="flex items-center gap-2.5">
-                                          <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
-                                          <div>
+                                          <div className="flex items-center gap-2.5">
+                                            <Checkbox 
+                                              checked={selectedDocIds.includes(doc.id)}
+                                              onCheckedChange={() => {
+                                                setSelectedDocIds(prev => prev.includes(doc.id) ? prev.filter(i => i !== doc.id) : [...prev, doc.id])
+                                              }}
+                                              aria-label="Select document"
+                                            />
+                                            <FileText className="w-4 h-4 text-indigo-500 shrink-0" />
+                                            <div>
                                             <span className="font-bold text-indigo-600 text-sm">{doc.document_number}</span>
                                             <span className="text-slate-800 text-sm font-medium ml-2">— {doc.document_name}</span>
                                             {doc.part_number && <span className="text-xs text-slate-500 ml-2">(PN: {doc.part_number})</span>}
@@ -678,6 +768,16 @@ function DocumentsPage() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
+                <TableHead className="w-[40px] pl-4">
+                  <Checkbox 
+                    checked={selectedDocIds.length > 0 && selectedDocIds.length === filteredRows.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) setSelectedDocIds(filteredRows.map(r => r.id));
+                      else setSelectedDocIds([]);
+                    }}
+                    aria-label="Select all"
+                  />
+                </TableHead>
                 <TableHead>Document</TableHead>
                 <TableHead>Part / Name</TableHead>
                 <TableHead>Party</TableHead>
@@ -703,17 +803,21 @@ function DocumentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((doc) => (
-                  <DocumentRow 
-                    key={doc.id} 
-                    doc={doc} 
-                    can={can} 
-                    navigate={navigate} 
-                    onPreview={handlePreview} 
-                    onDownload={handleDownload} 
-                    onOpenLocally={handleOpenLocally}
-                  />
-                ))
+                  filteredRows.map((doc) => (
+                    <DocumentRow 
+                      key={doc.id} 
+                      doc={doc} 
+                      can={can} 
+                      navigate={navigate} 
+                      onPreview={handlePreview} 
+                      onDownload={handleDownload} 
+                      onOpenLocally={handleOpenLocally}
+                      isSelected={selectedDocIds.includes(doc.id)}
+                      onSelect={(id) => {
+                        setSelectedDocIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+                      }}
+                    />
+                  ))
               )}
             </TableBody>
           </Table>
