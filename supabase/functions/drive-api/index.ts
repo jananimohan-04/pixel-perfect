@@ -85,16 +85,14 @@ serve(async (req) => {
     const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
 
     // --- OAUTH FLOW ---
-    if (action === 'auth-url') {
-      const partyId = url.searchParams.get('partyId');
-      if (!partyId) throw new Error('partyId required');
-      
-      const redirectUri = `https://poioxmtrlqbiurrpgehd.supabase.co/functions/v1/drive-api/callback`;
-      // Use prompt=consent to ensure we always get a refresh token
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/drive.file&access_type=offline&prompt=consent&state=${partyId}`;
-      
-      return new Response(JSON.stringify({ url: authUrl }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
+      if (action === 'auth-url') {
+        const partyId = url.searchParams.get('partyId');
+        if (!partyId) throw new Error('Missing partyId');
+        const redirectUri = `https://poioxmtrlqbiurrpgehd.supabase.co/functions/v1/drive-api/callback`;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/drive.file%20https://www.googleapis.com/auth/userinfo.email&access_type=offline&prompt=consent&state=${partyId}`;
+        
+        return new Response(JSON.stringify({ url: authUrl }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
     if (action === 'callback') {
       const code = url.searchParams.get('code');

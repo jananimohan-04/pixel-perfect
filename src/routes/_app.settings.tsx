@@ -246,6 +246,28 @@ function SettingsPage() {
     }
   };
 
+  const handleDisconnectDrive = async (driveId: string, partyId: string) => {
+    try {
+      if (!confirm("Are you sure you want to disconnect this drive?")) return;
+      
+      toast.loading("Disconnecting drive...");
+      if (driveId === 'legacy') {
+        const { error } = await supabase.from('cncvault_parties').update({ drive_refresh_token: null, drive_folder_id: null, drive_email: null }).eq('id', partyId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('cncvault_party_drives').delete().eq('id', driveId);
+        if (error) throw error;
+      }
+      
+      toast.dismiss();
+      toast.success("Drive disconnected successfully!");
+      refetchParties();
+    } catch (err: any) {
+      toast.dismiss();
+      toast.error(err.message || "Failed to disconnect drive");
+    }
+  };
+
   if (!session) return null;
 
   return (
@@ -404,14 +426,19 @@ function SettingsPage() {
                               </div>
                               <div>
                                 <h4 className="font-semibold text-slate-800">{party.name}</h4>
-                                {drives.length > 0 ? (
-                                  <div className="mt-1 space-y-1">
-                                    {drives.map((d: any, idx: number) => (
-                                      <p key={d.id} className="text-sm text-green-600 flex items-center gap-1 font-medium">
-                                        <Check className="w-4 h-4" /> Drive {idx + 1}: {d.drive_email || 'Connected'}
-                                      </p>
-                                    ))}
-                                  </div>
+                                  {drives.length > 0 ? (
+                                    <div className="mt-1 space-y-1">
+                                      {drives.map((d: any, idx: number) => (
+                                        <div key={d.id} className="flex items-center gap-2">
+                                          <p className="text-sm text-green-600 flex items-center gap-1 font-medium">
+                                            <Check className="w-4 h-4" /> Drive {idx + 1}: {d.drive_email || 'Connected'}
+                                          </p>
+                                          <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDisconnectDrive(d.id, party.id)}>
+                                            Disconnect
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
                                 ) : (
                                   <p className="text-sm text-slate-500 mt-1">Not Connected</p>
                                 )}
