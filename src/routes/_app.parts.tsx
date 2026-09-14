@@ -858,7 +858,7 @@ function PartsPage() {
     const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
     const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
     if (!targetPartyId || targetPartyId === 'all') return;
-    const fileIds = selectedDocsData.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    const fileIds = selectedDocsData.map(d => d.versions?.[0]?.google_drive_file_id || d.google_drive_file_id).filter(Boolean) as string[];
     if (fileIds.length === 0) return;
 
     setIsLoadingSharedEmails(true);
@@ -886,7 +886,7 @@ function PartsPage() {
     const selectedDocsData = allDocs.filter(d => selectedDocIds.includes(d.id));
     const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
     if (!targetPartyId || targetPartyId === 'all') return;
-    const fileIds = selectedDocsData.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    const fileIds = selectedDocsData.map(d => d.versions?.[0]?.google_drive_file_id || d.google_drive_file_id).filter(Boolean) as string[];
 
     const toastId = toast.loading(`Unsharing from ${email}...`);
     try {
@@ -906,7 +906,7 @@ function PartsPage() {
 
     const targetPartyId = selectedDocsData[0]?.party_id || profile?.party_id || partyId;
     if (!targetPartyId || targetPartyId === 'all') return toast.error("Please select a specific workspace/company first");
-    const fileIds = selectedDocsData?.map(d => d.google_drive_file_id).filter(Boolean) as string[];
+    const fileIds = selectedDocsData.map(d => d.versions?.[0]?.google_drive_file_id || d.google_drive_file_id).filter(Boolean) as string[];
     
     if (!fileIds || fileIds.length === 0) return toast.error("None of the selected documents have Google Drive files attached.");
 
