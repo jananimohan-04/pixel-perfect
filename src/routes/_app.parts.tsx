@@ -1054,18 +1054,15 @@ function PartsPage() {
   };
 
   const handleOpenLocally = (doc: any, version: any) => {
-    let basePath = localStorage.getItem("localDrivePath") || "G:\\My Drive\\CNC Vault";
-    if (basePath.endsWith('\\')) basePath = basePath.slice(0, -1);
-    if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
-    const fullPath = `${basePath}\\${doc.document_number}\\V${version.version_number}\\${version.file_name}`;
+    const payload = `filename=${version.file_name}`;
     const base64EncodeUnicode = (str: string) => {
       return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
           function toSolidBytes(_match, p1) {
               return String.fromCharCode(parseInt(p1, 16));
       }));
     };
-    const encodedPath = base64EncodeUnicode(fullPath);
-    window.location.href = `cncvault://open?b64path=${encodedPath}`;
+    const encodedPayload = base64EncodeUnicode(payload);
+    window.location.href = `cncvault://open?b64payload=${encodedPayload}`;
   };
 
   const filteredParts = parts?.filter(p => 
