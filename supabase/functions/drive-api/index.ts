@@ -131,12 +131,15 @@ serve(async (req) => {
       const userInfo = await userInfoRes.json();
 
       // Ensure root folder exists for this party
-      let rootFolderId = await findFolder('CNC Vault', '', accessToken);
-      if (!rootFolderId) {
-        rootFolderId = await createFolder('CNC Vault', '', accessToken);
-      }
-
       const supabaseClient = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
+      
+      const { data: partyData } = await supabaseClient.from('cncvault_parties').select('name').eq('id', partyId).single();
+      const rootFolderName = `CNC Vault - ${partyData?.name || 'Workspace'}`;
+
+      let rootFolderId = await findFolder(rootFolderName, '', accessToken);
+      if (!rootFolderId) {
+        rootFolderId = await createFolder(rootFolderName, '', accessToken);
+      }
 
       await supabaseClient.from('cncvault_parties').update({ 
         drive_refresh_token: refreshToken,
@@ -360,7 +363,14 @@ serve(async (req) => {
       // Create hierarchy
       let baseFolderId = partyData.drive_folder_id;
       if (targetFolderId) {
-        baseFolderId = targetFolderId;
+        const { data: targetFolderData } = await supabaseClient
+          .from('cncvault_drive_folders')
+          .select('google_folder_id')
+          .eq('id', targetFolderId)
+          .maybeSingle();
+        if (targetFolderData?.google_folder_id) {
+          baseFolderId = targetFolderData.google_folder_id;
+        }
       }
       let docFolderId = await findFolder(documentNumber, baseFolderId, token);
       if (!docFolderId) docFolderId = await createFolder(documentNumber, baseFolderId, token);

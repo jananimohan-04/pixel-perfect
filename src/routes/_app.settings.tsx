@@ -136,8 +136,8 @@ function PartyDriveFolderSection({ party }: { party: any }) {
         onOpenChange={setIsModalOpen} 
       />
 
-      <div className="bg-white rounded-md border border-slate-200 p-2.5 space-y-1 text-sm">
-        <div className="flex items-center gap-2 text-slate-700 font-medium text-xs py-1 px-2 bg-slate-50 rounded">
+      <div className="bg-white rounded-md border border-slate-200 p-2.5 space-y-1 text-sm overflow-hidden">
+        <div className="flex items-center gap-2 text-slate-700 font-medium text-xs py-1.5 px-2 bg-slate-50/80 rounded border border-slate-100">
           <Folder className="w-4 h-4 text-amber-500 fill-amber-100" />
           <span>CNC Vault (Root)</span>
         </div>
@@ -147,22 +147,53 @@ function PartyDriveFolderSection({ party }: { party: any }) {
         ) : folderList.length === 0 ? (
           <div className="text-xs text-slate-400 italic p-2">No custom sub-folders created yet. Click "New Folder" to create one.</div>
         ) : (
-          folderList.map(folder => {
-            const parent = folder.parent_folder_id ? folderList.find(f => f.id === folder.parent_folder_id) : null;
-            return (
-              <div key={folder.id} className="flex items-center justify-between text-xs py-1 px-2 hover:bg-slate-50 rounded text-slate-600" style={{ paddingLeft: parent ? '1.5rem' : '0.5rem' }}>
-                <div className="flex items-center gap-2">
-                  <Folder className="w-3.5 h-3.5 text-indigo-500" />
-                  <span className="font-medium text-slate-800">{folder.name}</span>
-                  {parent && (
-                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">in {parent.name}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })
+          <FolderTree folders={folderList} parentId={null} depth={1} />
         )}
       </div>
+    </div>
+  );
+}
+
+function FolderTree({ folders, parentId, depth }: { folders: any[], parentId: string | null, depth: number }) {
+  const children = folders.filter(f => f.parent_folder_id === parentId);
+  if (children.length === 0) return null;
+
+  return (
+    <div className="space-y-0.5 mt-0.5 relative">
+      {/* Render a vertical connecting line for nested items */}
+      {depth > 1 && (
+        <div className="absolute left-[7px] top-0 bottom-3 w-px bg-slate-200" />
+      )}
+      
+      {children.map((folder, index) => {
+        const hasChildren = folders.some(f => f.parent_folder_id === folder.id);
+        const isLast = index === children.length - 1;
+        
+        return (
+          <div key={folder.id} className="relative">
+            {/* Horizontal line connecting to the vertical line */}
+            {depth > 1 && (
+              <div className="absolute left-[7px] top-4 w-3 h-px bg-slate-200" />
+            )}
+            
+            <div 
+              className="flex items-center justify-between text-xs py-1.5 px-2 hover:bg-slate-50/80 rounded text-slate-600 transition-colors" 
+              style={{ marginLeft: depth > 1 ? '16px' : '0px' }}
+            >
+              <div className="flex items-center gap-2">
+                <Folder className="w-4 h-4 text-indigo-400 fill-indigo-50" />
+                <span className="font-medium text-slate-700">{folder.name}</span>
+              </div>
+            </div>
+            
+            {hasChildren && (
+              <div className="relative">
+                <FolderTree folders={folders} parentId={folder.id} depth={depth + 1} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
