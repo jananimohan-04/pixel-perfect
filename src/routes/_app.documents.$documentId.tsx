@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getDocument, listVersions, listDocumentPermissions } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/use-permissions";
 import { GoogleDriveService } from "@/services/google-drive";
 import { Button } from "@/components/ui/button";
