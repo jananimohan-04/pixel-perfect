@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +49,8 @@ import {
   Loader2,
   FileCheck,
   ExternalLink,
-  Laptop
+  Laptop,
+  CheckSquare
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -1232,8 +1233,8 @@ function PartsPage() {
                 const partDocs = getDocsForPart(part);
 
                 return (
-                  <>
-                    <TableRow key={part.id} className="hover:bg-slate-50 transition-colors">
+                  <Fragment key={part.id}>
+                    <TableRow className="hover:bg-slate-50 transition-colors">
                       {/* Expand Toggle */}
                       <TableCell className="pr-0">
                         <Button 
@@ -1501,7 +1502,7 @@ function PartsPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })
             )}
